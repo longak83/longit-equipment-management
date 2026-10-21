@@ -124,7 +124,25 @@ function toggleVehicleFields(){const isVehicle=$('assetCategory').value==='Ô t�
 $('assetCategory').addEventListener('change',toggleVehicleFields);
 async function loadVehicleDetails(){if(!client||!session){vehicleDetailsByAsset={};return}const {data,error}=await client.from('vehicle_details').select('*').limit(500);if(error){console.warn('Không tải được thông tin ô tô:',error.message);return}vehicleDetailsByAsset=Object.fromEntries((data||[]).map(v=>[v.asset_id,v]))}
 function vehicleDaysLeft(date){if(!date)return null;const today=new Date();today.setHours(0,0,0,0);return Math.ceil((new Date(date+'T00:00:00')-today)/86400000)}
-function renderVehicleAlerts(){const rows=[];assets.filter(a=>a.category==='Ô tô').forEach(a=>{const v=vehicleDetailsByAsset[a.id];if(!v)return;[['Đăng kiểm',v.registration_expiry_date,v.registration_reminder_days,v.registration_estimated_cost,v.registration_actual_cost],['Bảo hiểm bắt buộc',v.insurance_expiry_date,v.insurance_reminder_days,v.insurance_estimated_cost,v.insurance_actual_cost]].forEach(([label,date,reminder,estimated,actual])=>{const days=vehicleDaysLeft(date);if(days!==null&&(days<0||days<=Number(reminder||0)))rows.push({asset:a,v,label,date,days,estimated,actual})})});const panel=$('vehicleAlertsPanel');panel.classList.toggle('hidden',assets.every(a=>a.category!=='Ô tô'));const due30=rows.filter(x=>x.days>=0&&x.days<=30);$('vehicleDueCount').textContent=due30.length;$('vehicleDueCost').textContent=money(due30.reduce((sum,x)=>sum+(Number(x.estimated)||0),0));$('vehicleAlertRows').innerHTML=rows.sort((a,b)=>a.days-b.days).map(x=>'<tr><td><b>'+esc(x.v.license_plate)+'</b></td><td>'+esc(x.asset.name||'—')+'</td><td>'+esc(x.label)+'</td><td>'+fmtDate(x.date)+'</td><td>'+(x.estimated==null?'—':money(x.estimated)+' đ')+'</td><td>'+(x.actual==null?'—':money(x.actual)+' đ')+'</td><td><span class="pill '+(x.days<0?'bad':'warn')+'">'+(x.days<0?'Quá hạn '+Math.abs(x.days)+' ngày':'Còn '+x.days+' ngày')+'</span></td><td><button class="btn" onclick="editAsset(\\''+x.asset.id+'\\')">Sửa xe</button></td></tr>').join('')||'<tr><td colspan="8" class="empty">Chưa có xe sắp hết hạn hoặc quá hạn.</td></tr>'}
+function renderVehicleAlerts(){
+ const rows=[];
+ assets.filter(a=>a.category==='Ô tô').forEach(a=>{
+  const v=vehicleDetailsByAsset[a.id];if(!v)return;
+  [['Đăng kiểm',v.registration_expiry_date,v.registration_reminder_days,v.registration_estimated_cost,v.registration_actual_cost],['Bảo hiểm bắt buộc',v.insurance_expiry_date,v.insurance_reminder_days,v.insurance_estimated_cost,v.insurance_actual_cost]].forEach(([label,date,reminder,estimated,actual])=>{
+   const days=vehicleDaysLeft(date);
+   if(days!==null&&(days<0||days<=Number(reminder||0)))rows.push({asset:a,v,label,date,days,estimated,actual});
+  });
+ });
+ const panel=$('vehicleAlertsPanel');
+ panel.classList.toggle('hidden',assets.every(a=>a.category!=='Ô tô'));
+ const due30=rows.filter(x=>x.days>=0&&x.days<=30);
+ $('vehicleDueCount').textContent=due30.length;
+ $('vehicleDueCost').textContent=money(due30.reduce((sum,x)=>sum+(Number(x.estimated)||0),0));
+ $('vehicleAlertRows').innerHTML=rows.sort((a,b)=>a.days-b.days).map((x,i)=>
+  '<tr><td><b>'+esc(x.v.license_plate)+'</b></td><td>'+esc(x.asset.name||'—')+'</td><td>'+esc(x.label)+'</td><td>'+fmtDate(x.date)+'</td><td>'+(x.estimated==null?'—':money(x.estimated)+' đ')+'</td><td>'+(x.actual==null?'—':money(x.actual)+' đ')+'</td><td><span class="pill '+(x.days<0?'bad':'warn')+'">'+(x.days<0?'Quá hạn '+Math.abs(x.days)+' ngày':'Còn '+x.days+' ngày')+'</span></td><td><button class="btn vehicle-edit-btn" data-asset-id="'+esc(x.asset.id)+'" type="button">Sửa xe</button></td></tr>'
+ ).join('')||'<tr><td colspan="8" class="empty">Chưa có xe sắp hết hạn hoặc quá hạn.</td></tr>';
+ $('vehicleAlertRows').querySelectorAll('.vehicle-edit-btn').forEach(btn=>btn.addEventListener('click',()=>window.editAsset(btn.dataset.assetId)));
+}
 
 // Outsourced services UI
 let outsourcedServices=[], outsourcedRenewals=[];
