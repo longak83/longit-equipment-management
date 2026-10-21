@@ -23,7 +23,7 @@ create table if not exists public.utility_tenants (
   uses_water boolean not null default true,
   custom_electric_rate numeric(14,2) check (custom_electric_rate is null or custom_electric_rate >= 0),
   custom_water_rate numeric(14,2) check (custom_water_rate is null or custom_water_rate >= 0),
-  vat_mode text not null default 'default' check (vat_mode in ('default','yes','no')),
+  vat_mode text not null default 'no' check (vat_mode in ('yes','no')),
   active boolean not null default true,
   notes text,
   created_at timestamptz not null default now(),
