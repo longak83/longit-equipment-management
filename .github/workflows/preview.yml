@@ -1,0 +1,35 @@
+name: Utility bill preview package
+
+on:
+  push:
+    branches:
+      - feature/utility-meter-billing-followup
+  pull_request:
+    branches:
+      - main
+    paths:
+      - 'index.html'
+      - '.github/workflows/preview.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  package-preview:
+    name: Package preview without deploying production
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout feature branch
+        uses: actions/checkout@v4
+
+      - name: Check HTML file exists
+        run: test -s index.html
+
+      - name: Upload preview package
+        uses: actions/upload-artifact@v4
+        with:
+          name: utility-billing-preview
+          path: index.html
+          if-no-files-found: error
+          retention-days: 7
