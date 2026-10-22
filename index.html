@@ -247,40 +247,40 @@ function utilityBillIncluded(){
  if(t){electric=electric&&t.uses_electricity;water=water&&t.uses_water}
  return {electric,water};
 }
+function utilityBillMeterRows(){
+ const box=$('utilityBillMeterInputs');
+ return [...box.querySelectorAll('[data-meter-id]')].map(el=>{
+  const meter=utilityMeters.find(m=>m.id===el.dataset.meterId);
+  const previous=el.querySelector('[data-field="previous"]').value===''?null:Number(el.querySelector('[data-field="previous"]').value);
+  const current=el.querySelector('[data-field="current"]').value===''?null:Number(el.querySelector('[data-field="current"]').value);
+  const usage=previous!==null&&current!==null&&current>=previous?current-previous:null;
+  const rate=Number(el.querySelector('[data-field="rate"]').value||0);
+  return {meter,previous,current,usage,rate,amount:usage===null?null:Math.round(usage*rate),roomName:el.dataset.roomName||'',type:el.dataset.type,serial:el.dataset.serial};
+ }).filter(x=>x.meter);
+}
+function renderUtilityBillMeterInputs(savedRows=[]){
+ const box=$('utilityBillMeterInputs'),t=utilitySelectedTenant(),kind=$('utilityBillType').value||'auto';
+ if(!t){box.innerHTML='<div class="empty">Chọn đơn vị thuê để tải danh sách công tơ.</div>';return}
+ const active=utilityMeters.filter(m=>m.active&&(m.utility_rooms||{}).tenant_id===t.id&&((kind==='electric'&&m.utility_type==='electricity')||(kind==='water'&&m.utility_type==='water')||(kind==='both')||(kind==='auto'&&((m.utility_type==='electricity'&&t.uses_electricity)||(m.utility_type==='water'&&t.uses_water)))));
+ if(!active.length){box.innerHTML='<div class="empty">Đơn vị này chưa có công tơ phù hợp. Hãy thêm phòng và công tơ ở mục phía trên.</div>';return}
+ box.innerHTML='<table><thead><tr><th>PHÒNG</th><th>LOẠI</th><th>SÊ-RI</th><th>CHỈ SỐ CŨ</th><th>CHỈ SỐ MỚI</th><th>SẢN LƯỢNG</th><th>ĐƠN GIÁ</th><th>THÀNH TIỀN</th></tr></thead><tbody>'+active.map(m=>{
+  const room=m.utility_rooms||{},saved=savedRows.find(x=>x.meter_id===m.id)||{},rate=m.custom_rate!==null&&m.custom_rate!==undefined?Number(m.custom_rate):utilityRate(t,m.utility_type==='electricity'?'electric':'water');
+  return '<tr data-meter-id="'+esc(m.id)+'" data-room-name="'+esc(room.room_name||'')+'" data-type="'+m.utility_type+'" data-serial="'+esc(m.serial_number)+'"><td>'+esc(room.room_name||'—')+'</td><td>'+(m.utility_type==='electricity'?'Điện':'Nước')+'</td><td>'+esc(m.serial_number)+'</td><td><input class="input" data-field="previous" type="number" min="0" step="0.001" value="'+(saved.previous_reading??'')+'" style="width:110px"></td><td><input class="input" data-field="current" type="number" min="0" step="0.001" style="width:110px"></td><td data-field="usage">—</td><td><input class="input" data-field="rate" type="number" min="0" step="1" value="'+rate+'" style="width:120px"></td><td data-field="amount">—</td></tr>';
+ }).join('')+'</tbody></table>';
+ box.querySelectorAll('input').forEach(input=>input.addEventListener('input',calcUtilityBill));
+}
 function calcUtilityBill(){
- const t=utilitySelectedTenant(),inc=utilityBillIncluded();
- const ep=Number($('utilityElectricPrevious').value||0),ec=$('utilityElectricCurrent').value===''?null:Number($('utilityElectricCurrent').value);
- const wp=Number($('utilityWaterPrevious').value||0),wc=$('utilityWaterCurrent').value===''?null:Number($('utilityWaterCurrent').value);
- const er=Number($('utilityElectricRate').value||0),wr=Number($('utilityWaterRate').value||0);
- const eu=inc.electric&&ec!==null&&ec>=ep?ec-ep:0,wu=inc.water&&wc!==null&&wc>=wp?wc-wp:0;
- const ea=inc.electric?Math.round(eu*er):0,wa=inc.water?Math.round(wu*wr):0,sub=ea+wa;
- const vatOn=$('utilityBillVatEnabled').checked,rate=Math.max(0,Number($('utilityBillVatRate').value||0)),vat=vatOn?Math.round(sub*rate/100):0;
- $('utilityElectricUsage').value=inc.electric&&ec!==null&&ec>=ep?eu.toFixed(3):'';
- $('utilityElectricAmount').value=inc.electric&&ec!==null&&ec>=ep?utilityFmt(ea):'';
- $('utilityWaterUsage').value=inc.water&&wc!==null&&wc>=wp?wu.toFixed(3):'';
- $('utilityWaterAmount').value=inc.water&&wc!==null&&wc>=wp?utilityFmt(wa):'';
+ const t=utilitySelectedTenant(),rows=utilityBillMeterRows();let sub=0;
+ rows.forEach(x=>{const tr=$('utilityBillMeterInputs').querySelector('[data-meter-id="'+x.meter.id+'"]');tr.querySelector('[data-field="usage"]').textContent=x.usage===null?'—':utilityFmt(x.usage);tr.querySelector('[data-field="amount"]').textContent=x.amount===null?'—':utilityFmt(x.amount)+' đ';if(x.amount!==null)sub+=x.amount});
+ const inc={electric:rows.some(x=>x.type==='electricity'),water:rows.some(x=>x.type==='water)},vatOn=$('utilityBillVatEnabled').checked,rate=Math.max(0,Number($('utilityBillVatRate').value||0)),vat=vatOn?Math.round(sub*rate/100):0;
  $('utilityBillSubtotal').textContent=utilityFmt(sub)+' đ';$('utilityBillVatAmount').textContent=utilityFmt(vat)+' đ';$('utilityBillTotal').textContent=utilityFmt(sub+vat)+' đ';
- return {t,inc,ep,ec,wp,wc,er,wr,eu,wu,ea,wa,sub,vatOn,rate,vat,total:sub+vat};
+ return {t,inc,rows,sub,vatOn,rate,vat,total:sub+vat};
 }
 async function prepareUtilityBill(){
- const t=utilitySelectedTenant();
- $('utilityElectricRate').value=t?utilityRate(t,'electric'):utilitySettings.default_electric_rate;
- $('utilityWaterRate').value=t?utilityRate(t,'water'):utilitySettings.default_water_rate;
- $('utilityBillVatEnabled').checked=t?t.vat_mode==='yes':false;
- $('utilityBillVatRate').value=utilitySettings.default_vat_rate;
- $('utilityElectricPrevious').value='0';$('utilityWaterPrevious').value='0';
- const month=$('utilityBillPeriod').value;
- if(t&&month&&client&&session){
-  const period=month+'-01';
-  const {data,error}=await client.from('utility_bills').select('*').eq('tenant_id',t.id).lt('billing_period',period).order('billing_period',{ascending:false}).limit(1);
-  if(!error&&data?.[0]){const last=data[0];if(last.include_electricity&&last.electric_current!==null)$('utilityElectricPrevious').value=last.electric_current;if(last.include_water&&last.water_current!==null)$('utilityWaterPrevious').value=last.water_current;}
- }
- const inc=utilityBillIncluded();
- $('utilityElectricPrevious').disabled=!inc.electric;$('utilityElectricCurrent').disabled=!inc.electric;
- $('utilityWaterPrevious').disabled=!inc.water;$('utilityWaterCurrent').disabled=!inc.water;
- if(t&&!inc.electric)$('utilityElectricCurrent').value='';
- if(t&&!inc.water)$('utilityWaterCurrent').value='';
- calcUtilityBill();
+ const t=utilitySelectedTenant();$('utilityBillVatEnabled').checked=t?t.vat_mode==='yes':false;$('utilityBillVatRate').value=utilitySettings.default_vat_rate;
+ const endDate=$('utilityBillEndDate').value;let savedRows=[];
+ if(t&&endDate&&client&&session){const meters=utilityMeters.filter(m=>m.active&&(m.utility_rooms||{}).tenant_id===t.id);for(const m of meters){const {data}=await client.from('utility_meter_readings').select('*').eq('meter_id',m.id).lte('reading_date',endDate).order('reading_date',{ascending:false}).order('created_at',{ascending:false}).limit(1);if(data?.[0])savedRows.push({meter_id:m.id,previous_reading:data[0].reading_value})}}
+ renderUtilityBillMeterInputs(savedRows);calcUtilityBill();
 }
 function renderUtilityBills(){
  const period=$('utilityBillsPeriod').value,kind=$('utilityBillsType').value,q=$('utilityBillsSearch').value.trim().toLocaleLowerCase('vi');
