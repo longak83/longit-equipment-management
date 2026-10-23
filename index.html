@@ -71,7 +71,7 @@
   <div class="muted" style="margin-top:8px">Đơn giá nhập theo biểu giá nội bộ của công ty. VAT mặc định 8% có thể thay đổi tại đây; cần kiểm tra mức thuế suất thực tế áp dụng trước khi xuất hóa đơn.</div>
  </div>
  <div class="panel">
-  <div class="panelhead"><div><h3>Danh sách đơn vị thuê</h3><div class="muted">Mỗi đơn vị có đồng hồ riêng; có thể dùng điện, nước hoặc cả hai.</div></div><button class="btn" id="resetUtilityTenant">＋ Đơn vị mới</button></div>
+  <div class="panelhead"><div><h3>Danh sách đơn vị thuê</h3><div class="muted">Mỗi đơn vị quản lý nhiều công tơ ngay trong cùng biểu mẫu; không cần khai báo phòng.</div></div><button class="btn" id="resetUtilityTenant">＋ Đơn vị mới</button></div>
   <form id="utilityTenantForm" class="formgrid">
    <input id="utilityTenantId" type="hidden">
    <label class="field">Tên đơn vị thuê *<input class="input" id="utilityTenantName" required placeholder="Tên đơn vị"></label>
@@ -236,7 +236,7 @@ let tenantMeterDrafts=[];
 function resetUtilityTenantForm(){ $('utilityTenantForm').reset();$('utilityTenantId').value='';$('utilityUsesElectricity').checked=true;$('utilityUsesWater').checked=true;$('utilityTenantActive').checked=true;$('utilityTenantVatMode').value='no';tenantMeterDrafts=[];renderTenantMetersEditor(); }
 function renderUtilityTenants(){
  $('utilityTenantCount').textContent=utilityTenants.filter(t=>t.active).length;
- $('utilityTenantRows').innerHTML=utilityTenants.map(t=>'<tr><td><b>'+esc(t.name)+'</b><div class="muted">'+esc(t.contact_person||'')+'</div></td><td>Điện: '+esc(t.electric_meter_number||'—')+'<br>Nước: '+esc(t.water_meter_number||'—')+'</td><td>'+[t.uses_electricity?'Điện':'',t.uses_water?'Nước':''].filter(Boolean).join(' + ')+'</td><td>'+utilityFmt(t.custom_electric_rate??utilitySettings.default_electric_rate)+' đ</td><td>'+utilityFmt(t.custom_water_rate??utilitySettings.default_water_rate)+' đ</td><td>'+(t.vat_mode==='yes'?'Có VAT '+utilitySettings.default_vat_rate+'%':'Không VAT')+'</td><td>'+(t.active?'Đang thuê':'Ngừng thuê')+'</td><td><div style="display:flex;gap:6px;flex-wrap:wrap"><button class="btn utility-edit-tenant" data-id="'+esc(t.id)+'" type="button">Sửa</button><button class="btn danger utility-delete-tenant" data-id="'+esc(t.id)+'" type="button">Xóa</button></div></td></tr>').join('')||'<tr><td colspan="8" class="empty">Chưa có đơn vị thuê. Thêm đơn vị để bắt đầu theo dõi.</td></tr>';
+ $('utilityTenantRows').innerHTML=utilityTenants.map(t=>{const meters=utilityMeters.filter(m=>(m.utility_rooms||{}).tenant_id===t.id);const serials=meters.map(m=>(m.utility_type==='electricity'?'Điện: ':'Nước: ')+esc(m.serial_number)).join('<br>')||'— Chưa có công tơ —';return '<tr><td><b>'+esc(t.name)+'</b><div class="muted">'+esc(t.contact_person||'')+'</div></td><td>'+serials+'</td><td>'+[t.uses_electricity?'Điện':'',t.uses_water?'Nước':''].filter(Boolean).join(' + ')+'</td><td>'+utilityFmt(t.custom_electric_rate??utilitySettings.default_electric_rate)+' đ</td><td>'+utilityFmt(t.custom_water_rate??utilitySettings.default_water_rate)+' đ</td><td>'+(t.vat_mode==='yes'?'Có VAT '+utilitySettings.default_vat_rate+'%':'Không VAT')+'</td><td>'+(t.active?'Đang thuê':'Ngừng thuê')+'</td><td><div style="display:flex;gap:6px;flex-wrap:wrap"><button class="btn utility-edit-tenant" data-id="'+esc(t.id)+'" type="button">Sửa</button><button class="btn danger utility-delete-tenant" data-id="'+esc(t.id)+'" type="button">Xóa</button></div></td></tr>'}).join('')||'<tr><td colspan="8" class="empty">Chưa có đơn vị thuê. Thêm đơn vị để bắt đầu theo dõi.</td></tr>';
  $('utilityBillTenant').innerHTML='<option value="">— Chọn đơn vị —</option>'+utilityTenants.filter(t=>t.active).map(t=>'<option value="'+esc(t.id)+'">'+esc(t.name)+'</option>').join('');
  $('utilityTenantRows').querySelectorAll('.utility-edit-tenant').forEach(b=>b.addEventListener('click',()=>{const t=utilityTenants.find(x=>x.id===b.dataset.id);if(!t)return;resetUtilityTenantForm();$('utilityTenantId').value=t.id;$('utilityTenantName').value=t.name||'';$('utilityTenantContact').value=t.contact_person||'';$('utilityTenantElectricRate').value=t.custom_electric_rate??'';$('utilityTenantWaterRate').value=t.custom_water_rate??'';$('utilityTenantVatMode').value=t.vat_mode||'no';$('utilityTenantNotes').value=t.notes||'';$('utilityUsesElectricity').checked=!!t.uses_electricity;$('utilityUsesWater').checked=!!t.uses_water;$('utilityTenantActive').checked=!!t.active;tenantMeterDrafts=[];renderTenantMetersEditor();$('utilityTenantForm').scrollIntoView({behavior:'smooth',block:'center'});})); $('utilityTenantRows').querySelectorAll('.utility-delete-tenant').forEach(b=>b.addEventListener('click',()=>deleteUtilityTenant(b.dataset.id)));
 }
@@ -356,7 +356,7 @@ async function loadUtilityMeters(){
  if(!client||!session){utilityMeters=[];renderUtilityMeters();return}
  const result=await client.from('utility_meters').select('*,utility_rooms(room_name,tenant_id)').order('serial_number').limit(5000);
  if(result.error){console.warn(result.error);return}
- utilityMeters=result.data||[];renderUtilityMeters();
+ utilityMeters=result.data||[];renderUtilityMeters();renderUtilityTenants();renderTenantMetersEditor();
 }
 function renderUtilityMeters(){
  const body=$('utilityMeterRows');if(!body)return;
