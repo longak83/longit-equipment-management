@@ -358,9 +358,42 @@ async function loadUtilityMeters(){
  if(result.error){console.warn(result.error);return}
  utilityMeters=result.data||[];renderUtilityMeters();renderUtilityTenants();renderTenantMetersEditor();
 }
+async function editUtilityMeter(id){
+ const m=utilityMeters.find(function(x){return x.id===id});if(!m)return;
+ const room=m.utility_rooms||{},tenant=utilityTenants.find(function(t){return t.id===room.tenant_id});
+ const readings=await client.from('utility_meter_readings').select('id',{count:'exact',head:true}).eq('meter_id',id);
+ if(readings.error){toast('Không kiểm tra được lịch sử chỉ số: '+readings.error.message);return}
+ if((readings.count||0)>0){toast('Công tơ đã có lịch sử chỉ số. Để bảo toàn dữ liệu, hãy ngừng dùng công tơ này và khai báo công tơ đúng.');return}
+ const serial=window.prompt('Nhập số sê-ri đúng:',m.serial_number||'');if(serial===null)return;
+ if(!serial.trim()){toast('Số sê-ri không được để trống.');return}
+ const rate=window.prompt('Đơn giá riêng (để trống nếu dùng giá chung):',m.custom_rate==null?'':String(m.custom_rate));if(rate===null)return;
+ if(rate.trim()!==''&&(!Number.isFinite(Number(rate))||Number(rate)<0)){toast('Đơn giá không hợp lệ.');return}
+ const type=window.prompt('Loại công tơ: nhập E = Điện, W = Nước',m.utility_type==='electricity'?'E':'W');if(type===null)return;
+ const normalized=type.trim().toUpperCase();if(!['E','W','ĐIỆN','NƯỚC'].includes(normalized)){toast('Loại công tơ chỉ nhận E hoặc W.');return}
+ const updated=await client.from('utility_meters').update({serial_number:serial.trim(),custom_rate:rate.trim()===''?null:Number(rate),utility_type:['E','ĐIỆN'].includes(normalized)?'electricity':'water'}).eq('id',id).select('id');
+ if(updated.error){toast('Không sửa được công tơ: '+updated.error.message);return}
+ if(!updated.data||!updated.data.length){toast('Không sửa được công tơ: tài khoản có thể chưa có quyền quản trị.');return}
+ toast('Đã cập nhật công tơ.');await loadUtilities();
+}
+async function deleteUtilityMeter(id){
+ const m=utilityMeters.find(function(x){return x.id===id});if(!m)return;
+ const readings=await client.from('utility_meter_readings').select('id',{count:'exact',head:true}).eq('meter_id',id);
+ if(readings.error){toast('Không kiểm tra được lịch sử chỉ số: '+readings.error.message);return}
+ if((readings.count||0)>0){toast('Công tơ đã có lịch sử chỉ số. Không thể xóa an toàn; hãy ngừng sử dụng công tơ.');return}
+ const lines=await client.from('utility_bill_meter_lines').select('id',{count:'exact',head:true}).eq('meter_id',id);
+ if(lines.error){toast('Không kiểm tra được giấy báo liên quan: '+lines.error.message);return}
+ if((lines.count||0)>0){toast('Công tơ đã được dùng trong giấy báo. Không thể xóa để tránh ảnh hưởng lịch sử.');return}
+ if(!window.confirm('Xóa công tơ '+m.serial_number+'? Chỉ công tơ chưa có lịch sử mới được xóa.'))return;
+ const removed=await client.from('utility_meters').delete().eq('id',id).select('id');
+ if(removed.error){toast('Không xóa được công tơ: '+removed.error.message);return}
+ if(!removed.data||!removed.data.length){toast('Không xóa được công tơ: tài khoản có thể chưa có quyền quản trị.');return}
+ toast('Đã xóa công tơ.');await loadUtilities();
+}
 function renderUtilityMeters(){
  const body=$('utilityMeterRows');if(!body)return;
- body.innerHTML=utilityMeters.map(function(m){const room=m.utility_rooms||{},t=utilityTenants.find(function(x){return x.id===room.tenant_id});return '<tr><td>'+esc(t?t.name:'—')+'</td><td>'+esc(room.room_name||'—')+'</td><td>'+(m.utility_type==='electricity'?'Điện':'Nước')+'</td><td>'+esc(m.serial_number)+'</td><td>'+(m.custom_rate===null||m.custom_rate===undefined?'Theo giá chung':utilityFmt(m.custom_rate)+' đ')+'</td><td>'+(m.active?'Đang dùng':'Ngừng dùng')+'</td></tr>'}).join('')||'<tr><td colspan="6" class="empty">Chưa có công tơ.</td></tr>';
+ body.innerHTML=utilityMeters.map(function(m){const room=m.utility_rooms||{},t=utilityTenants.find(function(x){return x.id===room.tenant_id});return '<tr><td>'+esc(t?t.name:'—')+'</td><td>'+esc(room.room_name||'—')+'</td><td>'+(m.utility_type==='electricity'?'Điện':'Nước')+'</td><td>'+esc(m.serial_number)+'</td><td>'+(m.custom_rate===null||m.custom_rate===undefined?'Theo giá chung':utilityFmt(m.custom_rate)+' đ')+'</td><td>'+(m.active?'Đang dùng':'Ngừng dùng')+'</td><td><div style="display:flex;gap:6px;flex-wrap:wrap"><button class="btn utility-edit-meter" data-id="'+esc(m.id)+'" type="button">Sửa</button><button class="btn danger utility-delete-meter" data-id="'+esc(m.id)+'" type="button">Xóa</button></div></td></tr>'}).join('')||'<tr><td colspan="7" class="empty">Chưa có công tơ.</td></tr>';
+ body.querySelectorAll('.utility-edit-meter').forEach(function(btn){btn.addEventListener('click',function(){editUtilityMeter(btn.dataset.id)})});
+ body.querySelectorAll('.utility-delete-meter').forEach(function(btn){btn.addEventListener('click',function(){deleteUtilityMeter(btn.dataset.id)})});
 }
 async function loadUtilities(){
  if(!client||!session){utilityTenants=[];utilityBills=[];renderUtilityTenants();renderUtilityBills();return}
