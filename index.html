@@ -418,11 +418,24 @@ function utilityReportBillMatchesResource(b,resource){return resource==='both'||
 function utilityReportAggregate(key,tenantId,resource){
  const selected=utilityBills.filter(b=>(!tenantId||b.tenant_id===tenantId)&&utilityReportBillMatchesResource(b,resource)&&utilityBillRangeMatches(b,key));
  const byTenant=new Map();selected.forEach(b=>{if(!byTenant.has(b.tenant_id))byTenant.set(b.tenant_id,[]);byTenant.get(b.tenant_id).push(b)});
- const out=[];
+ const out=[],period=utilityReportPeriodParts(key),annual=!!(period&&/^\\d{4}$/.test(String(key))),monthlyReport=!!(period&&!annual&&!String(key).includes('-Q')&&period.startMonth===period.endMonth);
  byTenant.forEach((bills,id)=>{
-  const quarterly=bills.filter(utilityBillIsQuarter),monthly=bills.filter(b=>!utilityBillIsQuarter(b));
-  // A quarterly snapshot supersedes monthly snapshots for that same tenant and report window.
-  const chosen=quarterly.length?quarterly.sort((a,b)=>String(b.billing_end_date||b.billing_period).localeCompare(String(a.billing_end_date||a.billing_period))).slice(0,1):monthly;
+  let chosen=[];
+  if(monthlyReport){
+   // A quarterly bill is not apportioned into an individual month without monthly readings.
+   chosen=bills.filter(b=>!utilityBillIsQuarter(b)&&utilityBillEndMonth(b).slice(0,7)===key);
+  }else if(annual){
+   // For each quarter, prefer one quarterly snapshot; otherwise sum that tenant's monthly bills.
+   for(let q=1;q<=4;q++){
+    const months=[(q-1)*3+1,(q-1)*3+2,(q-1)*3+3].map(m=>String(m).padStart(2,'0'));
+    const qBills=bills.filter(b=>{const end=utilityBillEndMonth(b);if(!end)return false;const d=new Date(end+'-01T00:00:00');return d.getFullYear()===period.year&&Math.floor(d.getMonth()/3)+1===q});
+    const quarterly=qBills.filter(utilityBillIsQuarter).sort((a,b)=>String(b.billing_end_date||b.billing_period).localeCompare(String(a.billing_end_date||a.billing_period)));
+    if(quarterly.length)chosen.push(quarterly[0]);else chosen.push(...qBills.filter(b=>!utilityBillIsQuarter(b)));
+   }
+  }else{
+   const quarterly=bills.filter(utilityBillIsQuarter).sort((a,b)=>String(b.billing_end_date||b.billing_period).localeCompare(String(a.billing_end_date||a.billing_period)));
+   chosen=quarterly.length?[quarterly[0]]:bills.filter(b=>!utilityBillIsQuarter(b));
+  }
   if(!chosen.length)return;
   const electric=chosen.filter(b=>b.include_electricity).reduce((s,b)=>s+utilityReportBillUsage(b,'electricity',true),0);
   const waterActual=chosen.filter(b=>b.include_water).reduce((s,b)=>s+utilityReportBillUsage(b,'water',true),0);
@@ -465,7 +478,7 @@ function renderUtilityManagementReport(){
  const keys=utilityReportQuarterKeys();
  periodSelect.innerHTML='<option value="">Tất cả dữ liệu</option>'+keys.map(k=>'<option value="'+esc(k)+'">'+esc(utilityReportPeriodLabel(k))+'</option>').join('');
  periodSelect.value=keys.includes(oldPeriod)?oldPeriod:'';
- tenantSelect.innerHTML='<option value="">Tất cả đơn vị</option>'+utilityTenants.map(t=>'<option value="'+esc(t.id)+'">'+esc(t.name)+'</option>').join('');
+ tenantSelect.innerHTML='<option value="">Tất cả đơn vị</option>'+utilityTenants.map(t=>'<option value="'+esc(t.id)+'">'+esc(t.name)+'</option>').join('');$('utilityReportNoteTenant').innerHTML='<option value="">Toàn kỳ báo cáo</option>'+utilityTenants.map(t=>'<option value="'+esc(t.id)+'">'+esc(t.name)+'</option>').join('');
  tenantSelect.value=utilityTenants.some(t=>t.id===oldTenant)?oldTenant:'';
  ['utilityCompanyTotalPeriod','utilityReportNotePeriod'].forEach(id=>{const el=$(id),old=id==='utilityCompanyTotalPeriod'?oldCompany:oldNotePeriod;el.innerHTML=keys.filter(k=>String(k).includes('-Q')).map(k=>'<option value="'+esc(k)+'">'+esc(utilityReportPeriodLabel(k))+'</option>').join('');el.value=keys.includes(old)?old:(keys.find(k=>k===new Date().getFullYear()+'-Q3')||keys[0]||'')});
  const key=periodSelect.value,resource=$('utilityReportResource').value,tenantId=tenantSelect.value,rows=utilityReportAggregate(key,tenantId,resource);
@@ -485,7 +498,7 @@ function renderUtilityManagementReport(){
  $('utilityReportAlertCount').textContent=alerts.length;
  $('utilityReportAlerts').innerHTML=alerts.length?alerts.map(a=>'<tr><td class="'+(a.level==='Cao'?'utility-report-alert':'utility-report-warn')+'">'+esc(a.level)+'</td><td>'+esc(a.tenant)+'</td><td>'+esc(a.type)+'</td><td>'+esc(a.issue)+'</td><td>'+esc(a.action)+'</td></tr>').join(''):'<tr><td colspan="5" class="empty">Chưa phát hiện cảnh báo từ dữ liệu đang chọn.</td></tr>';
  $('utilityReportRows').innerHTML=rows.map(row=>'<tr><td><b>'+esc(row.tenant?.name||'Đơn vị đã lưu')+'</b></td><td>'+esc(utilityReportPeriodLabel(key||'Tất cả dữ liệu'))+(row.from&&row.to?'<br><span class="muted">'+esc(fmtDate(row.from))+' – '+esc(fmtDate(row.to))+'</span>':'')+'</td><td>'+utilityFmt(row.electric)+'</td><td>'+utilityFmt(row.waterActual)+'</td><td>'+utilityFmt(row.waterBilled)+'</td><td>'+utilityFmt(row.subtotal)+' đ</td><td>'+utilityFmt(row.vat)+' đ</td><td><b>'+utilityFmt(row.total)+' đ</b></td><td>'+(priorKey?'Có so sánh kỳ trước':'—')+'</td></tr>').join('')||'<tr><td colspan="9" class="empty">Không có giấy báo phù hợp với bộ lọc.</td></tr>';
- renderUtilityReportTrend('utilityReportElectricTrend','electricity',resource==='water'?'water':'electricity');renderUtilityReportTrend('utilityReportWaterTrend','water',resource==='electricity'?'electricity':'water');
+ renderUtilityReportTrend('utilityReportElectricTrend','electricity','electricity');renderUtilityReportTrend('utilityReportWaterTrend','water','water');
  renderUtilityCompanyTotals();renderUtilityReportNotes();
 }
 async function saveUtilityCompanyTotal(e){
