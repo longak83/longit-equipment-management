@@ -474,6 +474,12 @@ function renderUtilityReportNotes(){
  el.innerHTML=notes.length?notes.map(n=>'<tr><td>'+esc(utilityReportPeriodLabel(n.period_key))+'</td><td>'+esc(utilityReportScopeText(n.tenant_id))+'</td><td><b>'+esc(({incident:'Sự cố',repair:'Sửa chữa / bảo trì',operation:'Thay đổi hoạt động',adjustment:'Điều chỉnh số liệu',other:'Khác'})[n.note_type]||'Ghi chú')+'</b><br>'+esc(n.content)+'</td><td>'+esc(({both:'Điện và nước',electricity:'Điện',water:'Nước'})[n.resource]||n.resource||'—')+'</td><td>'+esc(utilityReportStatusText(n.status))+'</td><td><button class="btn danger utility-report-note-delete" data-id="'+esc(n.id)+'" type="button">Xóa</button></td></tr>').join(''):'<tr><td colspan="6" class="empty">Chưa có ghi chú cho kỳ này.</td></tr>';
  el.querySelectorAll('.utility-report-note-delete').forEach(btn=>btn.addEventListener('click',()=>deleteUtilityReportNote(btn.dataset.id)));
 }
+function utilityCompanyQuarterCoverage(tenantRows,resource){
+ const active=utilityTenants.filter(t=>t.active!==false&&(resource==='electricity'?t.uses_electricity:t.uses_water));
+ if(!active.length)return {ok:false,missing:0};
+ const missing=active.filter(t=>{const row=tenantRows.find(x=>x.tenant_id===t.id);return !row||!row.bills.some(b=>resource==='electricity'?b.include_electricity:b.include_water);}).length;
+ return {ok:missing===0,missing};
+}
 function renderUtilityCompanyTotals(){
  const formPeriod=$('utilityCompanyTotalPeriod')?.value||$('utilityReportPeriod')?.value||'',saved=utilityCompanyTotals.find(x=>x.period_key===formPeriod);
  $('utilityCompanyElectric').value=saved&&saved.electric_total_kwh!==null&&saved.electric_total_kwh!==undefined?saved.electric_total_kwh:'';
@@ -483,8 +489,9 @@ function renderUtilityCompanyTotals(){
  const tenantElectric=tenantRows.reduce((s,x)=>s+x.electric,0),tenantWater=tenantRows.reduce((s,x)=>s+x.waterActual,0);
  const hasElectric=saved&&saved.electric_total_kwh!==null&&saved.electric_total_kwh!==undefined;
  const hasWater=saved&&saved.water_total_m3!==null&&saved.water_total_m3!==undefined;
- $('utilityCompanyElectricInternal').textContent=!hasElectric?'Chưa có dữ liệu':tenantRows.length?'Ước tính chênh lệch theo quý: '+utilityFmt(Number(saved.electric_total_kwh)-tenantElectric)+' kWh':'Chưa có dữ liệu đơn vị thuê trong quý';
- $('utilityCompanyWaterInternal').textContent=!hasWater?'Chưa có dữ liệu':tenantRows.length?'Ước tính chênh lệch theo quý: '+utilityFmt(Number(saved.water_total_m3)-tenantWater)+' m³':'Chưa có dữ liệu đơn vị thuê trong quý';
+ const electricCoverage=utilityCompanyQuarterCoverage(tenantRows,'electricity'),waterCoverage=utilityCompanyQuarterCoverage(tenantRows,'water');
+ $('utilityCompanyElectricInternal').textContent=!hasElectric?'Chưa có dữ liệu':!electricCoverage.ok?'Chưa đủ dữ liệu điện của '+electricCoverage.missing+' đơn vị thuê':('Ước tính chênh lệch theo quý: '+utilityFmt(Number(saved.electric_total_kwh)-tenantElectric)+' kWh');
+ $('utilityCompanyWaterInternal').textContent=!hasWater?'Chưa có dữ liệu':!waterCoverage.ok?'Chưa đủ dữ liệu nước của '+waterCoverage.missing+' đơn vị thuê':('Ước tính chênh lệch theo quý: '+utilityFmt(Number(saved.water_total_m3)-tenantWater)+' m³');
 }
 function renderUtilityManagementReport(){
  const periodSelect=$('utilityReportPeriod'),tenantSelect=$('utilityReportTenant');if(!periodSelect||!tenantSelect)return;
