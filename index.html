@@ -550,7 +550,7 @@ function exportUtilityManagementReport(){
  if(notes.length){rows.push([]);rows.push(['GHI CHÚ DIỄN BIẾN']);rows.push(['Kỳ','Phạm vi','Loại sự kiện','Ảnh hưởng','Nội dung','Trạng thái']);notes.forEach(n=>rows.push([utilityReportPeriodLabel(n.period_key),utilityReportScopeText(n.tenant_id),n.note_type,n.resource,n.content,utilityReportStatusText(n.status)]));}
  const company=utilityCompanyTotals.find(x=>x.period_key===($('utilityCompanyTotalPeriod').value||key));
  if(company){rows.push([]);rows.push(['SỐ LIỆU ĐỒNG HỒ TỔNG CÔNG TY']);rows.push(['Kỳ','Từ ngày','Đến ngày','Điện tổng (kWh)','Nước tổng (m3)','Nguồn / ghi chú']);rows.push([company.period_key,company.period_start_date||'',company.period_end_date||'',company.electric_total_kwh??'',company.water_total_m3??'',company.source_notes||'']);}
- const csv='\\uFEFF'+rows.map(r=>r.map(v=>'"'+String(v??'').replace(/"/g,'""')+'"').join(',')).join('\\r\\n'),blob=new Blob([csv],{type:'text/csv;charset=utf-8;'}),url=URL.createObjectURL(blob),a=document.createElement('a');a.href=url;a.download='bao-cao-quan-ly-tieu-thu-dien-nuoc.csv';document.body.appendChild(a);a.click();a.remove();URL.revokeObjectURL(url);
+ const csv='\uFEFF'+rows.map(r=>r.map(v=>'"'+String(v??'').replace(/"/g,'""')+'"').join(',')).join('\r\n'),blob=new Blob([csv],{type:'text/csv;charset=utf-8;'}),url=URL.createObjectURL(blob),a=document.createElement('a');a.href=url;a.download='bao-cao-quan-ly-tieu-thu-dien-nuoc.csv';document.body.appendChild(a);a.click();a.remove();URL.revokeObjectURL(url);
 }
 function renderUtilityBills(){
  const period=$('utilityBillsPeriod').value,kind=$('utilityBillsType').value,q=$('utilityBillsSearch').value.trim().toLocaleLowerCase('vi');
