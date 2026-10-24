@@ -406,8 +406,8 @@ async function prepareUtilityBill(){
  renderUtilityBillMeterInputs(savedRows);calcUtilityBill();
 }
 
-function utilityReportPeriodParts(key){if(!key)return null;const m=String(key).match(/^(\\d{4})-Q([1-4])$/);if(m)return {year:Number(m[1]),quarter:Number(m[2]),startMonth:(Number(m[2])-1)*3+1,endMonth:Number(m[2])*3};const y=String(key).match(/^(\\d{4})$/);if(y)return {year:Number(y[1]),startMonth:1,endMonth:12};const mo=String(key).match(/^(\\d{4})-(\\d{2})$/);if(mo)return {year:Number(mo[1]),startMonth:Number(mo[2]),endMonth:Number(mo[2])};return null}
-function utilityReportPeriodLabel(key){const p=utilityReportPeriodParts(key);if(!p)return key||'—';if(String(key).includes('-Q'))return 'Quý '+p.quarter+'/'+p.year;if(/^\\d{4}$/.test(key))return 'Năm '+key;return utilityMonthLabel(key)}
+function utilityReportPeriodParts(key){if(!key)return null;const m=String(key).match(/^([0-9]{4})-Q([1-4])$/);if(m)return {year:Number(m[1]),quarter:Number(m[2]),startMonth:(Number(m[2])-1)*3+1,endMonth:Number(m[2])*3};const y=String(key).match(/^([0-9]{4})$/);if(y)return {year:Number(y[1]),startMonth:1,endMonth:12};const mo=String(key).match(/^([0-9]{4})-([0-9]{2})$/);if(mo)return {year:Number(mo[1]),startMonth:Number(mo[2]),endMonth:Number(mo[2])};return null}
+function utilityReportPeriodLabel(key){const p=utilityReportPeriodParts(key);if(!p)return key||'Tất cả dữ liệu';if(String(key).includes('-Q'))return 'Quý '+p.quarter+'/'+p.year;if(/^([0-9]{4})$/.test(String(key)))return 'Năm '+key;return utilityMonthLabel(key)}
 function utilityBillStartMonth(b){const d=b.billing_start_date||b.billing_period||'';return String(d).slice(0,7)}
 function utilityBillEndMonth(b){const d=b.billing_end_date||b.bill_date||b.billing_period||'';return String(d).slice(0,7)}
 function utilityBillDurationDays(b){const s=b.billing_start_date,e=b.billing_end_date;if(!s||!e)return 0;return Math.max(1,Math.round((new Date(e+'T00:00:00')-new Date(s+'T00:00:00'))/86400000)+1)}
@@ -418,23 +418,30 @@ function utilityReportBillMatchesResource(b,resource){return resource==='both'||
 function utilityReportAggregate(key,tenantId,resource){
  const selected=utilityBills.filter(b=>(!tenantId||b.tenant_id===tenantId)&&utilityReportBillMatchesResource(b,resource)&&utilityBillRangeMatches(b,key));
  const byTenant=new Map();selected.forEach(b=>{if(!byTenant.has(b.tenant_id))byTenant.set(b.tenant_id,[]);byTenant.get(b.tenant_id).push(b)});
- const out=[],period=utilityReportPeriodParts(key),annual=!!(period&&/^\\d{4}$/.test(String(key))),monthlyReport=!!(period&&!annual&&!String(key).includes('-Q')&&period.startMonth===period.endMonth);
+ const out=[],period=utilityReportPeriodParts(key),annual=!!(period&&/^([0-9]{4})$/.test(String(key))),monthlyReport=!!(period&&!annual&&!String(key).includes('-Q')&&period.startMonth===period.endMonth);
  byTenant.forEach((bills,id)=>{
   let chosen=[];
   if(monthlyReport){
-   // A quarterly bill is not apportioned into an individual month without monthly readings.
-   chosen=bills.filter(b=>!utilityBillIsQuarter(b)&&utilityBillEndMonth(b).slice(0,7)===key);
-  }else if(annual){
-   // For each quarter, prefer one quarterly snapshot; otherwise sum that tenant's monthly bills.
-   for(let q=1;q<=4;q++){
-    const months=[(q-1)*3+1,(q-1)*3+2,(q-1)*3+3].map(m=>String(m).padStart(2,'0'));
-    const qBills=bills.filter(b=>{const end=utilityBillEndMonth(b);if(!end)return false;const d=new Date(end+'-01T00:00:00');return d.getFullYear()===period.year&&Math.floor(d.getMonth()/3)+1===q});
-    const quarterly=qBills.filter(utilityBillIsQuarter).sort((a,b)=>String(b.billing_end_date||b.billing_period).localeCompare(String(a.billing_end_date||a.billing_period)));
-    if(quarterly.length)chosen.push(quarterly[0]);else chosen.push(...qBills.filter(b=>!utilityBillIsQuarter(b)));
-   }
+   chosen=bills.filter(b=>!utilityBillIsQuarter(b)&&utilityBillEndMonth(b)===key);
   }else{
-   const quarterly=bills.filter(utilityBillIsQuarter).sort((a,b)=>String(b.billing_end_date||b.billing_period).localeCompare(String(a.billing_end_date||a.billing_period)));
-   chosen=quarterly.length?[quarterly[0]]:bills.filter(b=>!utilityBillIsQuarter(b));
+   let quarters=[];
+   if(annual||!key){
+    const qset=new Set();
+    bills.forEach(b=>{const end=utilityBillEndMonth(b);if(end){const d=new Date(end+'-01T00:00:00');if(!Number.isNaN(d.getTime()))qset.add(d.getFullYear()+'-Q'+(Math.floor(d.getMonth()/3)+1));}});
+    quarters=Array.from(qset).sort();
+   }else if(period&&String(key).includes('-Q'))quarters=[key];
+   else quarters=[];
+   if(quarters.length){
+    quarters.forEach(qkey=>{
+     const qp=utilityReportPeriodParts(qkey);
+     const qBills=bills.filter(b=>{const end=utilityBillEndMonth(b);if(!end)return false;const d=new Date(end+'-01T00:00:00');return d.getFullYear()===qp.year&&Math.floor(d.getMonth()/3)+1===qp.quarter;});
+     const quarterBills=qBills.filter(utilityBillIsQuarter).sort((a,b)=>String(b.billing_end_date||b.billing_period).localeCompare(String(a.billing_end_date||a.billing_period)));
+     if(quarterBills.length)chosen.push(quarterBills[0]);else chosen.push(...qBills.filter(b=>!utilityBillIsQuarter(b)));
+    });
+   }else{
+    const quarterBills=bills.filter(utilityBillIsQuarter).sort((a,b)=>String(b.billing_end_date||b.billing_period).localeCompare(String(a.billing_end_date||a.billing_period)));
+    chosen=quarterBills.length?[quarterBills[0]]:bills.filter(b=>!utilityBillIsQuarter(b));
+   }
   }
   if(!chosen.length)return;
   const electric=chosen.filter(b=>b.include_electricity).reduce((s,b)=>s+utilityReportBillUsage(b,'electricity',true),0);
