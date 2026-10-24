@@ -78,6 +78,7 @@
    <label class="field">Người liên hệ<input class="input" id="utilityTenantContact" placeholder="Người liên hệ"></label>
    <label class="field">Đơn giá điện riêng (đồng/kWh)<input class="input" id="utilityTenantElectricRate" type="number" min="0" step="1" placeholder="Để trống = giá chung"></label>
    <label class="field">Đơn giá nước riêng (đồng/m³)<input class="input" id="utilityTenantWaterRate" type="number" min="0" step="1" placeholder="Để trống = giá chung"></label>
+   <label class="field">Chu kỳ thanh toán<select class="input" id="utilityTenantBillingCycle"><option value="monthly">Hàng tháng</option><option value="quarterly">Hàng quý</option></select></label>
    <label class="field">VAT áp dụng<select class="input" id="utilityTenantVatMode"><option value="no">Không tính VAT</option><option value="yes">Có VAT theo mức chung</option></select></label>
    <label class="field">Ghi chú<input class="input" id="utilityTenantNotes" placeholder="Ghi chú thêm"></label>
    <div class="field full" style="display:flex;gap:18px;align-items:center"><label><input id="utilityUsesElectricity" type="checkbox" checked> Sử dụng điện</label><label><input id="utilityUsesWater" type="checkbox" checked> Sử dụng nước</label><label><input id="utilityTenantActive" type="checkbox" checked> Đang thuê</label></div>
@@ -100,6 +101,7 @@
    <div class="hidden"><input id="utilityElectricPrevious"><input id="utilityElectricCurrent"><input id="utilityElectricUsage"><input id="utilityElectricRate"><input id="utilityElectricAmount"><input id="utilityWaterPrevious"><input id="utilityWaterCurrent"><input id="utilityWaterUsage"><input id="utilityWaterRate"><input id="utilityWaterAmount"></div>
    <label class="field">VAT áp dụng (%)<input class="input" id="utilityBillVatRate" type="number" min="0" max="100" step="0.01"></label>
    <label class="field" style="align-self:end"><input id="utilityBillVatEnabled" type="checkbox" checked> Tính VAT trên tổng tiền điện + nước</label>
+   <div class="field full" style="border:1px solid var(--line);border-radius:10px;padding:12px"><b>Điều chỉnh sản lượng nước (nếu có)</b><div class="muted">Dùng khi công ty hỗ trợ hoặc khấu trừ một lượng nước cụ thể. Chỉ số công tơ thực tế vẫn được giữ nguyên; khoản giảm được lưu riêng trên giấy báo.</div><div class="formgrid" style="margin-top:8px"><label class="field">Sản lượng nước trừ (m³)<input class="input" id="utilityWaterAdjustment" type="number" min="0" step="0.001" value="0"></label><label class="field">Lý do điều chỉnh<input class="input" id="utilityWaterAdjustmentReason" placeholder="Ví dụ: Trừ 45 m³ (TT GSĐN và Trạm TT SG)"></label></div></div>
    <label class="field full">Ghi chú giấy báo<textarea class="input" id="utilityBillNotes" rows="2" placeholder="Ghi chú nếu có"></textarea></label>
    <div class="field full" style="border-top:1px solid var(--line);padding-top:14px"><div class="formgrid"><div><div class="muted">Cộng trước VAT</div><h3 id="utilityBillSubtotal">0 đ</h3></div><div><div class="muted">Tiền VAT</div><h3 id="utilityBillVatAmount">0 đ</h3></div><div><div class="muted">Tổng thanh toán</div><h2 id="utilityBillTotal">0 đ</h2></div></div></div>
    <div class="field full"><button class="btn primary" type="submit">Lập và lưu giấy báo</button></div>
@@ -233,12 +235,14 @@ function utilitySelectedTenant(){return utilityTenants.find(t=>t.id===$('utility
 function utilityRate(tenant,type){const custom=type==='electric'?tenant?.custom_electric_rate:tenant?.custom_water_rate;return custom!==null&&custom!==undefined&&custom!==''?Number(custom):Number(type==='electric'?utilitySettings.default_electric_rate:utilitySettings.default_water_rate)}
 function utilityBillKind(b){return b.include_electricity&&b.include_water?'both':b.include_electricity?'electric':'water'}
 let tenantMeterDrafts=[];
-function resetUtilityTenantForm(){ $('utilityTenantForm').reset();$('utilityTenantId').value='';$('utilityUsesElectricity').checked=true;$('utilityUsesWater').checked=true;$('utilityTenantActive').checked=true;$('utilityTenantVatMode').value='no';tenantMeterDrafts=[];renderTenantMetersEditor(); }
+function resetUtilityTenantForm(){ $('utilityTenantForm').reset();$('utilityTenantId').value='';$('utilityUsesElectricity').checked=true;$('utilityUsesWater').checked=true;$('utilityTenantActive').checked=true;$('utilityTenantVatMode').value='no';$('utilityTenantBillingCycle').value='monthly';tenantMeterDrafts=[];renderTenantMetersEditor(); }
 function renderUtilityTenants(){
  $('utilityTenantCount').textContent=utilityTenants.filter(t=>t.active).length;
  $('utilityTenantRows').innerHTML=utilityTenants.map(t=>{const meters=utilityMeters.filter(m=>(m.utility_rooms||{}).tenant_id===t.id);const serials=meters.map(m=>(m.utility_type==='electricity'?'Điện: ':'Nước: ')+esc(m.serial_number)).join('<br>')||'— Chưa có công tơ —';return '<tr><td><b>'+esc(t.name)+'</b><div class="muted">'+esc(t.contact_person||'')+'</div></td><td>'+serials+'</td><td>'+[t.uses_electricity?'Điện':'',t.uses_water?'Nước':''].filter(Boolean).join(' + ')+'</td><td>'+utilityFmt(t.custom_electric_rate??utilitySettings.default_electric_rate)+' đ</td><td>'+utilityFmt(t.custom_water_rate??utilitySettings.default_water_rate)+' đ</td><td>'+(t.vat_mode==='yes'?'Có VAT '+utilitySettings.default_vat_rate+'%':'Không VAT')+'</td><td>'+(t.active?'Đang thuê':'Ngừng thuê')+'</td><td><div style="display:flex;gap:6px;flex-wrap:wrap"><button class="btn utility-edit-tenant" data-id="'+esc(t.id)+'" type="button">Sửa</button><button class="btn danger utility-delete-tenant" data-id="'+esc(t.id)+'" type="button">Xóa</button></div></td></tr>'}).join('')||'<tr><td colspan="8" class="empty">Chưa có đơn vị thuê. Thêm đơn vị để bắt đầu theo dõi.</td></tr>';
+ const selectedBillTenant=$('utilityBillTenant').value;
  $('utilityBillTenant').innerHTML='<option value="">— Chọn đơn vị —</option>'+utilityTenants.filter(t=>t.active).map(t=>'<option value="'+esc(t.id)+'">'+esc(t.name)+'</option>').join('');
- $('utilityTenantRows').querySelectorAll('.utility-edit-tenant').forEach(b=>b.addEventListener('click',()=>{const t=utilityTenants.find(x=>x.id===b.dataset.id);if(!t)return;resetUtilityTenantForm();$('utilityTenantId').value=t.id;$('utilityTenantName').value=t.name||'';$('utilityTenantContact').value=t.contact_person||'';$('utilityTenantElectricRate').value=t.custom_electric_rate??'';$('utilityTenantWaterRate').value=t.custom_water_rate??'';$('utilityTenantVatMode').value=t.vat_mode||'no';$('utilityTenantNotes').value=t.notes||'';$('utilityUsesElectricity').checked=!!t.uses_electricity;$('utilityUsesWater').checked=!!t.uses_water;$('utilityTenantActive').checked=!!t.active;tenantMeterDrafts=[];renderTenantMetersEditor();$('utilityTenantForm').scrollIntoView({behavior:'smooth',block:'center'});})); $('utilityTenantRows').querySelectorAll('.utility-delete-tenant').forEach(b=>b.addEventListener('click',()=>deleteUtilityTenant(b.dataset.id)));
+ $('utilityBillTenant').value=utilityTenants.some(t=>t.active&&t.id===selectedBillTenant)?selectedBillTenant:'';
+ $('utilityTenantRows').querySelectorAll('.utility-edit-tenant').forEach(b=>b.addEventListener('click',()=>{const t=utilityTenants.find(x=>x.id===b.dataset.id);if(!t)return;resetUtilityTenantForm();$('utilityTenantId').value=t.id;$('utilityTenantName').value=t.name||'';$('utilityTenantContact').value=t.contact_person||'';$('utilityTenantElectricRate').value=t.custom_electric_rate??'';$('utilityTenantWaterRate').value=t.custom_water_rate??'';$('utilityTenantBillingCycle').value=t.billing_cycle||'monthly';$('utilityTenantVatMode').value=t.vat_mode||'no';$('utilityTenantNotes').value=t.notes||'';$('utilityUsesElectricity').checked=!!t.uses_electricity;$('utilityUsesWater').checked=!!t.uses_water;$('utilityTenantActive').checked=!!t.active;tenantMeterDrafts=[];renderTenantMetersEditor();$('utilityTenantForm').scrollIntoView({behavior:'smooth',block:'center'});})); $('utilityTenantRows').querySelectorAll('.utility-delete-tenant').forEach(b=>b.addEventListener('click',()=>deleteUtilityTenant(b.dataset.id)));
 }
 async function deleteUtilityTenant(id){
  if(!client||!session){toast('Đăng nhập quản lý để xóa đơn vị.');return}
@@ -271,15 +275,17 @@ function utilityBillIncluded(){
  return {electric,water};
 }
 function utilityBillMeterRows(){
- const box=$('utilityBillMeterInputs');
- return Array.from(box.querySelectorAll('[data-meter-id]')).map(function(el){
+ const box=$('utilityBillMeterInputs'),adjustment=Math.max(0,Number($('utilityWaterAdjustment').value||0));
+ const rows=Array.from(box.querySelectorAll('[data-meter-id]')).map(function(el){
   const meter=utilityMeters.find(function(m){return m.id===el.dataset.meterId});
   const p=el.querySelector('[data-field="previous"]').value, n=el.querySelector('[data-field="current"]').value;
   const previous=p===''?null:Number(p), current=n===''?null:Number(n);
   const usage=previous!==null&&current!==null&&current>=previous?current-previous:null;
   const rate=Number(el.querySelector('[data-field="rate"]').value||0);
-  return {meter:meter,previous:previous,current:current,usage:usage,rate:rate,amount:usage===null?null:Math.round(usage*rate),roomName:el.dataset.roomName||'',type:el.dataset.type,serial:el.dataset.serial};
+  return {meter:meter,previous:previous,current:current,usage:usage,billedUsage:usage,rate:rate,amount:usage===null?null:Math.round(usage*rate),roomName:el.dataset.roomName||'',type:el.dataset.type,serial:el.dataset.serial};
  }).filter(function(x){return !!x.meter});
+ if(adjustment>0){const water=rows.filter(function(x){return x.type==='water'});if(water.length===1&&water[0].usage!==null){water[0].billedUsage=water[0].usage-adjustment;water[0].amount=water[0].billedUsage>=0?Math.round(water[0].billedUsage*water[0].rate):null;}}
+ return rows;
 }
 function renderUtilityBillMeterInputs(savedRows){
  savedRows=savedRows||[];
@@ -302,9 +308,12 @@ function renderUtilityBillMeterInputs(savedRows){
 }
 function calcUtilityBill(){
  const t=utilitySelectedTenant(),rows=utilityBillMeterRows();let sub=0;
+ const adjustment=Math.max(0,Number($('utilityWaterAdjustment').value||0)),reason=$('utilityWaterAdjustmentReason').value.trim();
+ const waterRows=rows.filter(function(x){return x.type==='water'}),validAdjustment=adjustment===0||(waterRows.length===1&&waterRows[0].usage!==null&&adjustment<=waterRows[0].usage&&reason.length>0);
+ $('utilityWaterAdjustmentReason').setCustomValidity(validAdjustment?'':'Cần đúng 1 công tơ nước, lượng trừ không vượt sản lượng và có lý do.');
  rows.forEach(function(x){
   const tr=$('utilityBillMeterInputs').querySelector('[data-meter-id="'+x.meter.id+'"]');
-  tr.querySelector('[data-field="usage"]').textContent=x.usage===null?'—':utilityFmt(x.usage);
+  tr.querySelector('[data-field="usage"]').textContent=x.usage===null?'—':utilityFmt(x.usage)+(x.billedUsage!==x.usage?' (tính tiền '+utilityFmt(x.billedUsage)+')':'');
   tr.querySelector('[data-field="amount"]').textContent=x.amount===null?'—':utilityFmt(x.amount)+' đ';
   if(x.amount!==null)sub+=x.amount;
  });
@@ -313,8 +322,20 @@ function calcUtilityBill(){
  $('utilityBillSubtotal').textContent=utilityFmt(sub)+' đ';$('utilityBillVatAmount').textContent=utilityFmt(vat)+' đ';$('utilityBillTotal').textContent=utilityFmt(sub+vat)+' đ';
  return {t:t,inc:inc,rows:rows,sub:sub,vatOn:vatOn,rate:rate,vat:vat,total:sub+vat};
 }
+function formatISODate(d){return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0')}
+function setUtilityPeriodDates(){
+ const period=$('utilityBillPeriod').value,t=utilitySelectedTenant();if(!period)return;
+ const parts=period.split('-').map(Number),year=parts[0],month=parts[1];if(!year||!month)return;
+ const cycle=t&&t.billing_cycle==='quarterly'?'quarterly':'monthly';
+ const startMonth=cycle==='quarterly'?month-3:month-1;
+ const start=new Date(year,startMonth,1),end=new Date(year,month,0);
+ $('utilityBillStartDate').value=formatISODate(start);$('utilityBillEndDate').value=formatISODate(end);
+ if($('utilityBillDate').value==='')$('utilityBillDate').value=formatISODate(new Date());
+ const due=new Date(end.getFullYear(),end.getMonth()+1,15);$('utilityBillDueDate').value=formatISODate(due);
+}
 async function prepareUtilityBill(){
  const t=utilitySelectedTenant();$('utilityBillVatEnabled').checked=t?t.vat_mode==='yes':false;$('utilityBillVatRate').value=utilitySettings.default_vat_rate;
+ if(t&&$('utilityBillPeriod').value&&(!$('utilityBillStartDate').value||!$('utilityBillEndDate').value))setUtilityPeriodDates();
  const endDate=$('utilityBillEndDate').value;let savedRows=[];
  if(t&&endDate&&client&&session){
   const meters=utilityMeters.filter(function(m){return m.active&&(m.utility_rooms||{}).tenant_id===t.id});
@@ -437,7 +458,7 @@ $('utilityTenantForm').addEventListener('submit',async e=>{
  const usesE=$('utilityUsesElectricity').checked,usesW=$('utilityUsesWater').checked;
  if(!usesE&&!usesW){toast('Đơn vị phải sử dụng điện, nước hoặc cả hai.');return}
  const id=$('utilityTenantId').value;
- const row={name:$('utilityTenantName').value.trim(),contact_person:$('utilityTenantContact').value.trim()||null,uses_electricity:usesE,uses_water:usesW,custom_electric_rate:$('utilityTenantElectricRate').value===''?null:Number($('utilityTenantElectricRate').value),custom_water_rate:$('utilityTenantWaterRate').value===''?null:Number($('utilityTenantWaterRate').value),vat_mode:$('utilityTenantVatMode').value,active:$('utilityTenantActive').checked,notes:$('utilityTenantNotes').value.trim()||null};
+ const row={name:$('utilityTenantName').value.trim(),contact_person:$('utilityTenantContact').value.trim()||null,uses_electricity:usesE,uses_water:usesW,billing_cycle:$('utilityTenantBillingCycle').value||'monthly',custom_electric_rate:$('utilityTenantElectricRate').value===''?null:Number($('utilityTenantElectricRate').value),custom_water_rate:$('utilityTenantWaterRate').value===''?null:Number($('utilityTenantWaterRate').value),vat_mode:$('utilityTenantVatMode').value,active:$('utilityTenantActive').checked,notes:$('utilityTenantNotes').value.trim()||null};
  if((row.custom_electric_rate!==null&&row.custom_electric_rate<0)||(row.custom_water_rate!==null&&row.custom_water_rate<0)){toast('Đơn giá riêng không được âm.');return}
  for(const m of tenantMeterDrafts){if(!m.serial.trim()){toast('Vui lòng nhập số hiệu cho mọi công tơ mới.');return}if(m.rate!==''&&Number(m.rate)<0){toast('Đơn giá công tơ không được âm.');return}}
  let tenantId=id;
@@ -452,7 +473,7 @@ $('utilityTenantForm').addEventListener('submit',async e=>{
  resetUtilityTenantForm();await loadUtilities();toast(id?'Đã cập nhật đơn vị và công tơ mới.':'Đã thêm đơn vị và công tơ.');
 });
 $('resetUtilityTenant').addEventListener('click',resetUtilityTenantForm);$('cancelUtilityTenant').addEventListener('click',resetUtilityTenantForm);
-$('utilityBillTenant').addEventListener('change',prepareUtilityBill);$('utilityBillPeriod').addEventListener('change',prepareUtilityBill);$('utilityBillType').addEventListener('change',prepareUtilityBill);$('utilityBillEndDate').addEventListener('change',prepareUtilityBill);
+$('utilityBillTenant').addEventListener('change',function(){setUtilityPeriodDates();prepareUtilityBill()});$('utilityBillPeriod').addEventListener('change',function(){setUtilityPeriodDates();prepareUtilityBill()});$('utilityBillType').addEventListener('change',prepareUtilityBill);$('utilityBillEndDate').addEventListener('change',prepareUtilityBill);$('utilityWaterAdjustment').addEventListener('input',calcUtilityBill);$('utilityWaterAdjustmentReason').addEventListener('input',calcUtilityBill);
 ['utilityElectricPrevious','utilityElectricCurrent','utilityWaterPrevious','utilityWaterCurrent','utilityBillVatRate','utilityElectricRate','utilityWaterRate'].forEach(id=>$(id).addEventListener('input',calcUtilityBill));
 $('utilityBillVatEnabled').addEventListener('change',calcUtilityBill);
 $('utilityBillsPeriod').addEventListener('change',renderUtilityBills);$('utilityBillsType').addEventListener('change',renderUtilityBills);$('utilityBillsSearch').addEventListener('input',renderUtilityBills);
@@ -469,15 +490,17 @@ $('utilityBillForm').addEventListener('submit',async function(e){
  if(!$('utilityBillDueDate').value){toast('Vui lòng chọn hạn thanh toán.');return}
  const erows=rows.filter(function(x){return x.type==='electricity'}),wrows=rows.filter(function(x){return x.type==='water'});
  function sum(xs,key){return xs.reduce(function(n,x){return n+Number(x[key]||0)},0)}
- const eUsage=sum(erows,'usage'),wUsage=sum(wrows,'usage'),eAmount=sum(erows,'amount'),wAmount=sum(wrows,'amount');
- const row={tenant_id:c.t.id,billing_period:period+'-01',billing_start_date:startDate,billing_end_date:endDate,bill_date:$('utilityBillDate').value,due_date:$('utilityBillDueDate').value,include_electricity:erows.length>0,include_water:wrows.length>0,electric_previous:erows.length?sum(erows,'previous'):null,electric_current:erows.length?sum(erows,'current'):null,electric_usage:erows.length?eUsage:null,electric_rate:erows.length?Math.round(eAmount/(eUsage||1)):null,electric_amount:erows.length?eAmount:null,water_previous:wrows.length?sum(wrows,'previous'):null,water_current:wrows.length?sum(wrows,'current'):null,water_usage:wrows.length?wUsage:null,water_rate:wrows.length?Math.round(wAmount/(wUsage||1)):null,water_amount:wrows.length?wAmount:null,subtotal:c.sub,vat_enabled:c.vatOn,vat_rate:c.rate,vat_amount:c.vat,total_amount:c.total,notes:$('utilityBillNotes').value.trim()||null};
+ const adjustment=Math.max(0,Number($('utilityWaterAdjustment').value||0)),adjustmentReason=$('utilityWaterAdjustmentReason').value.trim();
+ if(adjustment>0&&(wrows.length!==1||wrows[0].usage===null||adjustment>wrows[0].usage||!adjustmentReason)){toast('Điều chỉnh nước cần đúng 1 công tơ nước, lượng trừ không vượt sản lượng và phải ghi rõ lý do.');return}
+ const eUsage=sum(erows,'billedUsage'),wUsage=sum(wrows,'billedUsage'),eAmount=sum(erows,'amount'),wAmount=sum(wrows,'amount');
+ const row={tenant_id:c.t.id,billing_period:period+'-01',billing_start_date:startDate,billing_end_date:endDate,bill_date:$('utilityBillDate').value,due_date:$('utilityBillDueDate').value,include_electricity:erows.length>0,include_water:wrows.length>0,electric_previous:erows.length?sum(erows,'previous'):null,electric_current:erows.length?sum(erows,'current'):null,electric_usage:erows.length?eUsage:null,electric_rate:erows.length?Math.round(eAmount/(eUsage||1)):null,electric_amount:erows.length?eAmount:null,water_previous:wrows.length?sum(wrows,'previous'):null,water_current:wrows.length?sum(wrows,'current'):null,water_usage:wrows.length?wUsage:null,water_rate:wrows.length?Math.round(wAmount/(wUsage||1)):null,water_amount:wrows.length?wAmount:null,water_adjustment_m3:adjustment,water_adjustment_reason:adjustment?adjustmentReason:null,subtotal:c.sub,vat_enabled:c.vatOn,vat_rate:c.rate,vat_amount:c.vat,total_amount:c.total,notes:$('utilityBillNotes').value.trim()||null};
  const made=await client.from('utility_bills').insert(row).select('*').single();if(made.error){toast('Không lưu được giấy báo: '+made.error.message);return}
  const bill=made.data;
- const lines=rows.map(function(x){return {bill_id:bill.id,meter_id:x.meter.id,room_name_snapshot:x.roomName,meter_type_snapshot:x.type,meter_serial_snapshot:x.serial,previous_reading:x.previous,current_reading:x.current,calculated_usage:x.usage,billed_usage:x.usage,usage_overridden:false,override_reason:null,unit_rate:x.rate,line_amount:x.amount}});
+ const lines=rows.map(function(x){const adjusted=x.type==='water'&&Number($('utilityWaterAdjustment').value||0)>0;return {bill_id:bill.id,meter_id:x.meter.id,room_name_snapshot:x.roomName,meter_type_snapshot:x.type,meter_serial_snapshot:x.serial,previous_reading:x.previous,current_reading:x.current,calculated_usage:x.usage,billed_usage:x.billedUsage,usage_overridden:adjusted,override_reason:adjusted?$('utilityWaterAdjustmentReason').value.trim():null,unit_rate:x.rate,line_amount:x.amount}});
  const lineResult=await client.from('utility_bill_meter_lines').insert(lines);if(lineResult.error){await client.from('utility_bills').delete().eq('id',bill.id);toast('Không lưu được chi tiết công tơ; đã hủy giấy báo vừa tạo: '+lineResult.error.message);return}
- const readings=rows.map(function(x){return {meter_id:x.meter.id,reading_date:endDate,reading_value:x.current,previous_reading_value:x.previous,calculated_usage:x.usage,billed_usage:x.usage,usage_overridden:false,override_reason:null,notes:'Đã lưu cùng giấy báo '+period}});
+ const readings=rows.map(function(x){return {meter_id:x.meter.id,reading_date:endDate,reading_value:x.current,previous_reading_value:x.previous,calculated_usage:x.usage,billed_usage:x.billedUsage,usage_overridden:x.billedUsage!==x.usage,override_reason:x.billedUsage!==x.usage?$('utilityWaterAdjustmentReason').value.trim():null,notes:'Đã lưu cùng giấy báo '+period}});
  const readingResult=await client.from('utility_meter_readings').upsert(readings,{onConflict:'meter_id,reading_date'});if(readingResult.error){await client.from('utility_bill_meter_lines').delete().eq('bill_id',bill.id);await client.from('utility_bills').delete().eq('id',bill.id);toast('Không lưu được lịch sử chỉ số; đã hủy giấy báo vừa tạo: '+readingResult.error.message);return}
- toast('Đã lập giấy báo và lưu chi tiết từng công tơ.');$('utilityBillNotes').value='';await loadUtilities();
+ toast('Đã lập giấy báo và lưu chi tiết từng công tơ.');$('utilityBillNotes').value='';$('utilityWaterAdjustment').value='0';$('utilityWaterAdjustmentReason').value='';await loadUtilities();
 });
 function utilityNumberToVietnameseWords(value){
  let n=Math.round(Number(value)||0);if(n===0)return 'Không đồng';
@@ -491,12 +514,16 @@ function printUtilityBill(id){
  const date=new Date((b.bill_date||new Date().toISOString().slice(0,10))+'T00:00:00'),dateText=date.toLocaleDateString('vi-VN',{day:'numeric',month:'numeric',year:'numeric'});
  const title=b.include_electricity&&b.include_water?'GIẤY BÁO ĐÓNG TIỀN ĐIỆN NƯỚC':b.include_electricity?'GIẤY BÁO ĐÓNG TIỀN ĐIỆN':'GIẤY BÁO ĐÓNG TIỀN NƯỚC';
  const periodText='(Từ ngày '+fmtDate(b.billing_start_date||b.billing_period)+' đến ngày '+fmtDate(b.billing_end_date||b.bill_date)+')',dueText=b.due_date?fmtDate(b.due_date):'—';
- let lines=(b.meter_lines||[]).map(function(x,i){return {stt:String.fromCharCode(65+i),name:(x.meter_type_snapshot==='electricity'?'Tiền điện':'Tiền nước')+' (No: '+x.meter_serial_snapshot+') - '+x.room_name_snapshot,prev:x.previous_reading,current:x.current_reading,usage:x.billed_usage,rate:x.unit_rate,amount:x.line_amount}});
+ let lines=(b.meter_lines||[]).map(function(x,i){
+  const base={stt:String.fromCharCode(65+i),name:(x.meter_type_snapshot==='electricity'?'Tiền điện':'Tiền nước')+' (No: '+x.meter_serial_snapshot+') - '+x.room_name_snapshot,prev:x.previous_reading,current:x.current_reading,usage:x.billed_usage,rate:x.unit_rate,amount:x.line_amount};
+  if(x.meter_type_snapshot==='water'&&Number(b.water_adjustment_m3||0)>0){return [{stt:base.stt,name:base.name,prev:base.prev,current:base.current,usage:x.calculated_usage,rate:'',amount:''},{stt:'',name:b.water_adjustment_reason||('Trừ '+utilityFmt(b.water_adjustment_m3)+' m³'),prev:'',current:'',usage:b.water_adjustment_m3,rate:'',amount:''},{stt:'',name:'Sản lượng tính tiền',prev:'',current:'',usage:x.billed_usage,rate:x.unit_rate,amount:x.line_amount}];}
+  return [base];
+ }).flat();
  if(!lines.length){
   if(b.include_electricity)lines.push({stt:'A',name:'Tiền điện (No: '+(t&&t.electric_meter_number||'—')+')',prev:b.electric_previous,current:b.electric_current,usage:b.electric_usage,rate:b.electric_rate,amount:b.electric_amount});
   if(b.include_water)lines.push({stt:b.include_electricity?'B':'A',name:'Tiền nước (No: '+(t&&t.water_meter_number||'—')+')',prev:b.water_previous,current:b.water_current,usage:b.water_usage,rate:b.water_rate,amount:b.water_amount});
  }
- const totalUsage=lines.reduce(function(n,x){return n+Number(x.usage||0)},0),fmtCell=function(v){return v===null||v===undefined||v===''?'—':utilityFmt(v)};
+ const totalUsage=(b.meter_lines||[]).reduce(function(n,x){return n+Number(x.billed_usage||0)},0)||lines.reduce(function(n,x){return n+Number(x.usage||0)},0),fmtCell=function(v){return v===null||v===undefined||v===''?'—':typeof v==='number'?utilityFmt(v):esc(v)};
  const lineRows=lines.map(function(x){return '<tr><td class="center">'+x.stt+'</td><td>'+esc(x.name)+'</td><td class="num">'+fmtCell(x.prev)+'</td><td class="num">'+fmtCell(x.current)+'</td><td class="num">'+fmtCell(x.usage)+'</td><td class="num">'+fmtCell(x.rate)+'</td><td class="num">'+fmtCell(x.amount)+'</td><td></td></tr>'}).join('');
  const vatLine=b.vat_enabled?'<tr><td colspan="6" class="label">Thuế VAT '+utilityFmt(b.vat_rate)+'%</td><td class="num">'+utilityFmt(b.vat_amount)+'</td><td></td></tr>':'';
  const w=window.open('','_blank','width=900,height=900');if(!w){toast('Trình duyệt đang chặn cửa sổ in. Hãy cho phép popup rồi thử lại.');return}
