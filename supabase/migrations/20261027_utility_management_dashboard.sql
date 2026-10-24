@@ -69,8 +69,9 @@ drop policy if exists "editors update utility report notes" on public.utility_re
 create policy "editors update utility report notes"
   on public.utility_report_notes for update to authenticated using (public.has_write_access()) with check (public.has_write_access());
 drop policy if exists "admins delete utility report notes" on public.utility_report_notes;
-create policy "admins delete utility report notes"
-  on public.utility_report_notes for delete to authenticated using (public.current_user_role() = 'admin');
+drop policy if exists "editors delete utility report notes" on public.utility_report_notes;
+create policy "editors delete utility report notes"
+  on public.utility_report_notes for delete to authenticated using (public.has_write_access());
 
 grant select, insert, update, delete on public.utility_company_totals, public.utility_report_notes to authenticated;
 
