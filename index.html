@@ -323,14 +323,20 @@ function calcUtilityBill(){
  return {t:t,inc:inc,rows:rows,sub:sub,vatOn:vatOn,rate:rate,vat:vat,total:sub+vat};
 }
 function formatISODate(d){return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0')}
-function setUtilityPeriodDates(){
- const period=$('utilityBillPeriod').value,t=utilitySelectedTenant();if(!period)return;
+async function setUtilityPeriodDates(){
+ const period=$('utilityBillPeriod').value,t=utilitySelectedTenant();if(!period||!t)return;
  const parts=period.split('-').map(Number),year=parts[0],month=parts[1];if(!year||!month)return;
- const cycle=t&&t.billing_cycle==='quarterly'?'quarterly':'monthly';
+ const cycle=t.billing_cycle==='quarterly'?'quarterly':'monthly';
  const startMonth=cycle==='quarterly'?month-3:month-1;
- const start=new Date(year,startMonth,1),end=new Date(year,month,0);
- $('utilityBillStartDate').value=formatISODate(start);$('utilityBillEndDate').value=formatISODate(end);
- if($('utilityBillDate').value==='')$('utilityBillDate').value=formatISODate(new Date());
+ const fallbackStart=new Date(year,startMonth,1);
+ const previous=utilityBills
+  .filter(function(b){return b.tenant_id===t.id&&String(b.billing_period||'').slice(0,7)<period&&b.billing_end_date;})
+  .sort(function(a,b){return String(b.billing_period).localeCompare(String(a.billing_period));})[0];
+ const startValue=previous?previous.billing_end_date:formatISODate(fallbackStart);
+ const end=new Date(year,month,0),endValue=formatISODate(end);
+ $('utilityBillStartDate').value=startValue;
+ $('utilityBillEndDate').value=endValue;
+ $('utilityBillDate').value=endValue;
  const due=new Date(end.getFullYear(),end.getMonth()+1,15);$('utilityBillDueDate').value=formatISODate(due);
 }
 async function prepareUtilityBill(){
@@ -340,7 +346,7 @@ async function prepareUtilityBill(){
  if(t&&endDate&&client&&session){
   const meters=utilityMeters.filter(function(m){return m.active&&(m.utility_rooms||{}).tenant_id===t.id});
   for(const m of meters){
-   const result=await client.from('utility_meter_readings').select('*').eq('meter_id',m.id).lt('reading_date',$('utilityBillStartDate').value).order('reading_date',{ascending:false}).order('created_at',{ascending:false}).limit(1);
+   const result=await client.from('utility_meter_readings').select('*').eq('meter_id',m.id).lte('reading_date',$('utilityBillStartDate').value).order('reading_date',{ascending:false}).order('created_at',{ascending:false}).limit(1);
    if(result.data&&result.data[0])savedRows.push({meter_id:m.id,previous_reading:result.data[0].reading_value});
   }
  }
@@ -473,7 +479,7 @@ $('utilityTenantForm').addEventListener('submit',async e=>{
  resetUtilityTenantForm();await loadUtilities();toast(id?'Đã cập nhật đơn vị và công tơ mới.':'Đã thêm đơn vị và công tơ.');
 });
 $('resetUtilityTenant').addEventListener('click',resetUtilityTenantForm);$('cancelUtilityTenant').addEventListener('click',resetUtilityTenantForm);
-$('utilityBillTenant').addEventListener('change',function(){setUtilityPeriodDates();prepareUtilityBill()});$('utilityBillPeriod').addEventListener('change',function(){setUtilityPeriodDates();prepareUtilityBill()});$('utilityBillType').addEventListener('change',prepareUtilityBill);$('utilityBillEndDate').addEventListener('change',prepareUtilityBill);$('utilityWaterAdjustment').addEventListener('input',calcUtilityBill);$('utilityWaterAdjustmentReason').addEventListener('input',calcUtilityBill);
+$('utilityBillTenant').addEventListener('change',async function(){await setUtilityPeriodDates();await prepareUtilityBill()});$('utilityBillPeriod').addEventListener('change',async function(){await setUtilityPeriodDates();await prepareUtilityBill()});$('utilityBillType').addEventListener('change',prepareUtilityBill);$('utilityBillEndDate').addEventListener('change',function(){ $('utilityBillDate').value=$('utilityBillEndDate').value;const end=$('utilityBillEndDate').value;if(end){const d=new Date(end+'T00:00:00');$('utilityBillDueDate').value=formatISODate(new Date(d.getFullYear(),d.getMonth()+1,15));}prepareUtilityBill()});$('utilityWaterAdjustment').addEventListener('input',calcUtilityBill);$('utilityWaterAdjustmentReason').addEventListener('input',calcUtilityBill);
 ['utilityElectricPrevious','utilityElectricCurrent','utilityWaterPrevious','utilityWaterCurrent','utilityBillVatRate','utilityElectricRate','utilityWaterRate'].forEach(id=>$(id).addEventListener('input',calcUtilityBill));
 $('utilityBillVatEnabled').addEventListener('change',calcUtilityBill);
 $('utilityBillsPeriod').addEventListener('change',renderUtilityBills);$('utilityBillsType').addEventListener('change',renderUtilityBills);$('utilityBillsSearch').addEventListener('input',renderUtilityBills);
