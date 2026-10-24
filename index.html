@@ -415,6 +415,14 @@ function utilityBillIsQuarter(b){return utilityBillDurationDays(b)>=45}
 function utilityBillRangeMatches(b,key){const p=utilityReportPeriodParts(key);if(!p)return true;const end=b.billing_end_date||b.bill_date||b.billing_period||'';const d=String(end).slice(0,10);if(!d)return false;const date=new Date(d+'T00:00:00');if(Number.isNaN(date.getTime()))return false;const start=new Date(p.year,p.startMonth-1,1),finish=new Date(p.year,p.endMonth,0,23,59,59);return date>=start&&date<=finish}
 function utilityReportBillUsage(b,type,actual){const lines=(b.meter_lines||[]).filter(x=>x.meter_type_snapshot===(type==='electricity'?'electricity':'water'));if(lines.length)return lines.reduce((s,x)=>s+Number(actual?(x.calculated_usage??x.billed_usage??0):(x.billed_usage??0)),0);return Number(type==='electricity'?(b.electric_usage||0):(b.water_usage||0))}
 function utilityReportBillMatchesResource(b,resource){return resource==='both'||(resource==='electricity'&&b.include_electricity)||(resource==='water'&&b.include_water)}
+function utilityReportBillAmount(b,resource){
+ if(resource==='both')return {subtotal:Number(b.subtotal||0),vat:Number(b.vat_amount||0),total:Number(b.total_amount||0)};
+ const type=resource==='electricity'?'electricity':'water';
+ const lines=(b.meter_lines||[]).filter(x=>x.meter_type_snapshot===type);
+ const subtotal=lines.length?lines.reduce((s,x)=>s+Number(x.line_amount||0),0):Number(type==='electricity'?b.electric_amount||0:b.water_amount||0);
+ const vat=b.vat_enabled?Math.round(subtotal*Number(b.vat_rate||0)/100):0;
+ return {subtotal,vat,total:subtotal+vat};
+}
 function utilityReportAggregate(key,tenantId,resource){
  const selected=utilityBills.filter(b=>(!tenantId||b.tenant_id===tenantId)&&utilityReportBillMatchesResource(b,resource)&&utilityBillRangeMatches(b,key));
  const byTenant=new Map();selected.forEach(b=>{if(!byTenant.has(b.tenant_id))byTenant.set(b.tenant_id,[]);byTenant.get(b.tenant_id).push(b)});
@@ -447,7 +455,7 @@ function utilityReportAggregate(key,tenantId,resource){
   const electric=chosen.filter(b=>b.include_electricity).reduce((s,b)=>s+utilityReportBillUsage(b,'electricity',true),0);
   const waterActual=chosen.filter(b=>b.include_water).reduce((s,b)=>s+utilityReportBillUsage(b,'water',true),0);
   const waterBilled=chosen.filter(b=>b.include_water).reduce((s,b)=>s+utilityReportBillUsage(b,'water',false),0);
-  const subtotal=chosen.reduce((s,b)=>s+Number(b.subtotal||0),0),vat=chosen.reduce((s,b)=>s+Number(b.vat_amount||0),0),total=chosen.reduce((s,b)=>s+Number(b.total_amount||0),0);
+  const money=chosen.map(b=>utilityReportBillAmount(b,resource)),subtotal=money.reduce((s,x)=>s+x.subtotal,0),vat=money.reduce((s,x)=>s+x.vat,0),total=money.reduce((s,x)=>s+x.total,0);
   out.push({tenant_id:id,tenant:utilityTenants.find(t=>t.id===id),bills:chosen,electric,waterActual,waterBilled,subtotal,vat,total,from:chosen.map(b=>b.billing_start_date).filter(Boolean).sort()[0]||'',to:chosen.map(b=>b.billing_end_date).filter(Boolean).sort().slice(-1)[0]||''});
  });
  return out.sort((a,b)=>String(a.tenant?.name||'').localeCompare(String(b.tenant?.name||''),'vi'));
@@ -535,10 +543,14 @@ async function deleteUtilityReportNote(id){
  if(!confirm('Xóa ghi chú này?'))return;const {error}=await client.from('utility_report_notes').delete().eq('id',id);if(error){toast('Không xóa được ghi chú: '+error.message);return}utilityReportNotes=utilityReportNotes.filter(x=>x.id!==id);renderUtilityReportNotes();toast('Đã xóa ghi chú.');
 }
 function exportUtilityManagementReport(){
- const rows=[['Kỳ báo cáo','Đơn vị','Từ ngày','Đến ngày','Điện thực tế (kWh)','Nước thực tế (m3)','Nước tính tiền (m3)','Trước VAT','VAT','Tổng thanh toán','Ghi chú']];
+ const rows=[['Kỳ báo cáo','Đơn vị','Từ ngày','Đến ngày','Điện thực tế (kWh)','Nước thực tế (m3)','Nước tính tiền (m3)','Trước VAT theo bộ lọc','VAT theo bộ lọc','Tổng theo bộ lọc','Ghi chú giấy báo']];
  const key=$('utilityReportPeriod').value,resource=$('utilityReportResource').value,tenantId=$('utilityReportTenant').value;
- utilityReportAggregate(key,tenantId,resource).forEach(row=>row.bills.forEach(b=>rows.push([utilityReportPeriodLabel(key||''),row.tenant?.name||'',b.billing_start_date||'',b.billing_end_date||'',b.include_electricity?utilityReportBillUsage(b,'electricity',true):'',b.include_water?utilityReportBillUsage(b,'water',true):'',b.include_water?utilityReportBillUsage(b,'water',false):'',b.subtotal||0,b.vat_amount||0,b.total_amount||0,b.notes||''])));
- const csv='\uFEFF'+rows.map(r=>r.map(v=>'"'+String(v??'').replace(/"/g,'""')+'"').join(',')).join('\\r\\n'),blob=new Blob([csv],{type:'text/csv;charset=utf-8;'}),url=URL.createObjectURL(blob),a=document.createElement('a');a.href=url;a.download='bao-cao-quan-ly-tieu-thu-dien-nuoc.csv';document.body.appendChild(a);a.click();a.remove();URL.revokeObjectURL(url);
+ utilityReportAggregate(key,tenantId,resource).forEach(row=>rows.push([utilityReportPeriodLabel(key||''),row.tenant?.name||'',row.from,row.to,row.electric,row.waterActual,row.waterBilled,row.subtotal,row.vat,row.total,row.bills.map(b=>b.notes||'').filter(Boolean).join(' | ')]));
+ const notes=utilityReportNotes.filter(n=>!key||n.period_key===key);
+ if(notes.length){rows.push([]);rows.push(['GHI CHÚ DIỄN BIẾN']);rows.push(['Kỳ','Phạm vi','Loại sự kiện','Ảnh hưởng','Nội dung','Trạng thái']);notes.forEach(n=>rows.push([utilityReportPeriodLabel(n.period_key),utilityReportScopeText(n.tenant_id),n.note_type,n.resource,n.content,utilityReportStatusText(n.status)]));}
+ const company=utilityCompanyTotals.find(x=>x.period_key===($('utilityCompanyTotalPeriod').value||key));
+ if(company){rows.push([]);rows.push(['SỐ LIỆU ĐỒNG HỒ TỔNG CÔNG TY']);rows.push(['Kỳ','Từ ngày','Đến ngày','Điện tổng (kWh)','Nước tổng (m3)','Nguồn / ghi chú']);rows.push([company.period_key,company.period_start_date||'',company.period_end_date||'',company.electric_total_kwh??'',company.water_total_m3??'',company.source_notes||'']);}
+ const csv='\\uFEFF'+rows.map(r=>r.map(v=>'"'+String(v??'').replace(/"/g,'""')+'"').join(',')).join('\\r\\n'),blob=new Blob([csv],{type:'text/csv;charset=utf-8;'}),url=URL.createObjectURL(blob),a=document.createElement('a');a.href=url;a.download='bao-cao-quan-ly-tieu-thu-dien-nuoc.csv';document.body.appendChild(a);a.click();a.remove();URL.revokeObjectURL(url);
 }
 function renderUtilityBills(){
  const period=$('utilityBillsPeriod').value,kind=$('utilityBillsType').value,q=$('utilityBillsSearch').value.trim().toLocaleLowerCase('vi');
