@@ -76,7 +76,7 @@
    <div class="panelhead"><div><h3>Số liệu đồng hồ tổng công ty</h3><div class="muted">Nhập số tổng theo quý để đối chiếu. Để trống khi chưa có số liệu; không tự hiểu là 0.</div></div></div>
    <form id="utilityCompanyTotalForm" class="formgrid">
     <label class="field">Kỳ đối chiếu<select class="input" id="utilityCompanyTotalPeriod"></select></label>
-    <label class="field">Điện tổng công ty (kWh)<input class="input" id="utilityCompanyElectric" type="number" min="0" step="0.001" placeholder="Chưa nhập"></label>
+    <label class="field">Từ ngày chốt số<input class="input" id="utilityCompanyStartDate" type="date"></label><label class="field">Đến ngày chốt số<input class="input" id="utilityCompanyEndDate" type="date"></label><label class="field">Điện tổng công ty (kWh)<input class="input" id="utilityCompanyElectric" type="number" min="0" step="0.001" placeholder="Chưa nhập"></label>
     <label class="field">Nước tổng công ty (m³)<input class="input" id="utilityCompanyWater" type="number" min="0" step="0.001" placeholder="Chưa nhập"></label>
     <label class="field">Nguồn / ghi chú<input class="input" id="utilityCompanySource" placeholder="Ví dụ: Đồng hồ tổng"></label>
     <div class="field full"><button class="btn primary" type="submit">Lưu số liệu tổng</button></div>
@@ -446,7 +446,7 @@ function utilityReportAggregate(key,tenantId,resource){
  return out.sort((a,b)=>String(a.tenant?.name||'').localeCompare(String(b.tenant?.name||''),'vi'));
 }
 function utilityReportQuarterKeys(){
- const years=new Set();utilityBills.forEach(b=>{const d=utilityBillEndMonth(b);if(/^\\d{4}-\\d{2}$/.test(d))years.add(Number(d.slice(0,4)))});utilityCompanyTotals.forEach(x=>{const p=utilityReportPeriodParts(x.period_key);if(p)years.add(p.year)});const yNow=new Date().getFullYear();years.add(yNow);const keys=[];Array.from(years).sort((a,b)=>b-a).forEach(y=>{for(let q=4;q>=1;q--)keys.push(y+'-Q'+q);keys.push(String(y))});return keys}
+ const years=new Set();utilityBills.forEach(b=>{const d=utilityBillEndMonth(b);if(/^\\d{4}-\\d{2}$/.test(d))years.add(Number(d.slice(0,4)))});utilityCompanyTotals.forEach(x=>{const p=utilityReportPeriodParts(x.period_key);if(p)years.add(p.year)});const yNow=new Date().getFullYear();years.add(yNow);const keys=[];Array.from(years).sort((a,b)=>b-a).forEach(y=>{for(let q=4;q>=1;q--)keys.push(y+'-Q'+q);keys.push(String(y));for(let m=12;m>=1;m--)keys.push(y+'-'+String(m).padStart(2,'0'))});return keys}
 function utilityReportPriorKey(key){const p=utilityReportPeriodParts(key);if(!p)return '';if(/^\\d{4}$/.test(key))return String(p.year-1);if(String(key).includes('-Q'))return p.quarter===1?(p.year-1)+'-Q4':p.year+'-Q'+(p.quarter-1);return ''}
 function utilityReportTrend(containerId,type,resource){
  const el=$(containerId);if(!el)return;const quarters=utilityReportQuarterKeys().filter(k=>String(k).includes('-Q')).sort().slice(-6);const rows=quarters.map(k=>({key:k,value:utilityReportAggregate(k,'',resource).reduce((s,x)=>s+(type==='electricity'?x.electric:x.waterActual),0)}));const max=Math.max(1,...rows.map(x=>x.value));el.innerHTML=rows.length?rows.map(x=>'<div class="utility-trend-row"><span>'+esc(utilityReportPeriodLabel(x.key))+'</span><div class="utility-trend-track"><div class="utility-trend-fill '+(type==='water'?'water':'')+'" style="width:'+Math.max(0,Math.min(100,x.value/max*100))+'%"></div></div><b style="text-align:right">'+utilityFmt(x.value)+'</b></div>').join(''):'<div class="empty">Chưa có dữ liệu.</div>';
@@ -461,23 +461,24 @@ function renderUtilityReportNotes(){
 }
 function renderUtilityCompanyTotals(){
  const formPeriod=$('utilityCompanyTotalPeriod')?.value||$('utilityReportPeriod')?.value||'',saved=utilityCompanyTotals.find(x=>x.period_key===formPeriod);
- $('utilityCompanyElectric').value=saved&&saved.electric_total_kwh!==null&&saved.electric_total_kwh!==undefined?saved.electric_total_kwh:'';
+ $('utilityCompanyStartDate').value=saved?.period_start_date||'';$('utilityCompanyEndDate').value=saved?.period_end_date||'';$('utilityCompanyElectric').value=saved&&saved.electric_total_kwh!==null&&saved.electric_total_kwh!==undefined?saved.electric_total_kwh:'';
  $('utilityCompanyWater').value=saved&&saved.water_total_m3!==null&&saved.water_total_m3!==undefined?saved.water_total_m3:'';
  $('utilityCompanySource').value=saved?.source_notes||'Đồng hồ tổng';
- const tenantRows=utilityReportAggregate(formPeriod,'','both');
+ const tenantRows=utilityReportAggregate(formPeriod,'','both'),bills=tenantRows.flatMap(x=>x.bills);
  const tenantElectric=tenantRows.reduce((s,x)=>s+x.electric,0),tenantWater=tenantRows.reduce((s,x)=>s+x.waterActual,0);
  const electric= saved&&saved.electric_total_kwh!==null&&saved.electric_total_kwh!==undefined?Number(saved.electric_total_kwh)-tenantElectric:null;
  const water= saved&&saved.water_total_m3!==null&&saved.water_total_m3!==undefined?Number(saved.water_total_m3)-tenantWater:null;
- const datesMatch=tenantRows.every(x=>x.bills.every(b=>{const p=utilityReportPeriodParts(formPeriod);if(!p||!b.billing_start_date||!b.billing_end_date)return false;const start=new Date(p.year,p.startMonth-1,1).toISOString().slice(0,10),end=new Date(p.year,p.endMonth,0).toISOString().slice(0,10);return b.billing_start_date===start&&b.billing_end_date===end}));
- $('utilityCompanyElectricInternal').textContent=electric===null?'Chưa có dữ liệu':(datesMatch?utilityFmt(electric)+' kWh':'Cần kiểm tra ngày chốt · '+utilityFmt(electric)+' kWh');
- $('utilityCompanyWaterInternal').textContent=water===null?'Chưa có dữ liệu':(datesMatch?utilityFmt(water)+' m³':'Cần kiểm tra ngày chốt · '+utilityFmt(water)+' m³');
+ const starts=bills.map(b=>b.billing_start_date).filter(Boolean).sort(),ends=bills.map(b=>b.billing_end_date).filter(Boolean).sort();
+ const datesMatch=!!(saved?.period_start_date&&saved?.period_end_date&&starts.length===bills.length&&ends.length===bills.length&&starts[0]===saved.period_start_date&&ends[ends.length-1]===saved.period_end_date&&bills.every(b=>b.billing_start_date>=saved.period_start_date&&b.billing_end_date<=saved.period_end_date));
+ $('utilityCompanyElectricInternal').textContent=electric===null?'Chưa có dữ liệu':(datesMatch?utilityFmt(electric)+' kWh':'Chưa thể đối chiếu: ngày chốt / phạm vi kỳ chưa khớp');
+ $('utilityCompanyWaterInternal').textContent=water===null?'Chưa có dữ liệu':(datesMatch?utilityFmt(water)+' m³':'Chưa thể đối chiếu: ngày chốt / phạm vi kỳ chưa khớp');
 }
 function renderUtilityManagementReport(){
  const periodSelect=$('utilityReportPeriod'),tenantSelect=$('utilityReportTenant');if(!periodSelect||!tenantSelect)return;
  const oldPeriod=periodSelect.value,oldTenant=tenantSelect.value,oldCompany=$('utilityCompanyTotalPeriod').value,oldNotePeriod=$('utilityReportNotePeriod').value;
  const keys=utilityReportQuarterKeys();
  periodSelect.innerHTML='<option value="">Tất cả dữ liệu</option>'+keys.map(k=>'<option value="'+esc(k)+'">'+esc(utilityReportPeriodLabel(k))+'</option>').join('');
- periodSelect.value=keys.includes(oldPeriod)?oldPeriod:'';
+ const currentQuarter=new Date().getFullYear()+'-Q'+(Math.floor(new Date().getMonth()/3)+1);periodSelect.value=keys.includes(oldPeriod)?oldPeriod:(keys.includes(currentQuarter)?currentQuarter:(keys.find(k=>String(k).includes('-Q'))||''));
  tenantSelect.innerHTML='<option value="">Tất cả đơn vị</option>'+utilityTenants.map(t=>'<option value="'+esc(t.id)+'">'+esc(t.name)+'</option>').join('');$('utilityReportNoteTenant').innerHTML='<option value="">Toàn kỳ báo cáo</option>'+utilityTenants.map(t=>'<option value="'+esc(t.id)+'">'+esc(t.name)+'</option>').join('');
  tenantSelect.value=utilityTenants.some(t=>t.id===oldTenant)?oldTenant:'';
  ['utilityCompanyTotalPeriod','utilityReportNotePeriod'].forEach(id=>{const el=$(id),old=id==='utilityCompanyTotalPeriod'?oldCompany:oldNotePeriod;el.innerHTML=keys.filter(k=>String(k).includes('-Q')).map(k=>'<option value="'+esc(k)+'">'+esc(utilityReportPeriodLabel(k))+'</option>').join('');el.value=keys.includes(old)?old:(keys.find(k=>k===new Date().getFullYear()+'-Q3')||keys[0]||'')});
@@ -505,7 +506,7 @@ async function saveUtilityCompanyTotal(e){
  e.preventDefault();if(!client||!session){toast('Đăng nhập quản lý để lưu số tổng công ty.');return}
  const period=$('utilityCompanyTotalPeriod').value;if(!period){toast('Chọn kỳ đối chiếu.');return}
  const ev=$('utilityCompanyElectric').value,wv=$('utilityCompanyWater').value;
- const row={period_key:period,electric_total_kwh:ev===''?null:Number(ev),water_total_m3:wv===''?null:Number(wv),source_notes:$('utilityCompanySource').value.trim()||null,updated_at:new Date().toISOString()};
+ const startDate=$('utilityCompanyStartDate').value||null,endDate=$('utilityCompanyEndDate').value||null;if(startDate&&endDate&&startDate>endDate){toast('Ngày bắt đầu chốt số phải trước ngày kết thúc.');return}const row={period_key:period,period_start_date:startDate,period_end_date:endDate,electric_total_kwh:ev===''?null:Number(ev),water_total_m3:wv===''?null:Number(wv),source_notes:$('utilityCompanySource').value.trim()||null,updated_at:new Date().toISOString()};
  const {data,error}=await client.from('utility_company_totals').upsert(row,{onConflict:'period_key'}).select('*').single();
  if(error){toast('Không lưu được số tổng. Cần chạy migration báo cáo điện nước trước: '+error.message);return}
  utilityCompanyTotals=utilityCompanyTotals.filter(x=>x.period_key!==period);utilityCompanyTotals.push(data);renderUtilityCompanyTotals();toast('Đã lưu số liệu tổng công ty.');
