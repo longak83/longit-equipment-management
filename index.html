@@ -475,8 +475,13 @@ function renderUtilityCompanyTotals(){
  const tenantElectric=tenantRows.reduce((s,x)=>s+x.electric,0),tenantWater=tenantRows.reduce((s,x)=>s+x.waterActual,0);
  const electric= saved&&saved.electric_total_kwh!==null&&saved.electric_total_kwh!==undefined?Number(saved.electric_total_kwh)-tenantElectric:null;
  const water= saved&&saved.water_total_m3!==null&&saved.water_total_m3!==undefined?Number(saved.water_total_m3)-tenantWater:null;
- const starts=bills.map(b=>b.billing_start_date).filter(Boolean).sort(),ends=bills.map(b=>b.billing_end_date).filter(Boolean).sort();
- const datesMatch=!!(saved?.period_start_date&&saved?.period_end_date&&starts.length===bills.length&&ends.length===bills.length&&starts[0]===saved.period_start_date&&ends[ends.length-1]===saved.period_end_date&&bills.every(b=>b.billing_start_date>=saved.period_start_date&&b.billing_end_date<=saved.period_end_date));
+ const datesMatch=!!(saved?.period_start_date&&saved?.period_end_date&&tenantRows.length>0&&utilityTenants.filter(t=>t.active!==false).every(t=>{
+  const row=tenantRows.find(x=>x.tenant_id===t.id);if(!row||!row.bills.length)return false;
+  const intervals=row.bills.filter(b=>b.billing_start_date&&b.billing_end_date).sort((a,b)=>String(a.billing_start_date).localeCompare(String(b.billing_start_date)));
+  if(intervals.length!==row.bills.length||intervals[0].billing_start_date!==saved.period_start_date||intervals[intervals.length-1].billing_end_date!==saved.period_end_date)return false;
+  for(let i=1;i<intervals.length;i++){if(intervals[i].billing_start_date>intervals[i-1].billing_end_date)return false;}
+  return intervals.every(b=>b.billing_start_date>=saved.period_start_date&&b.billing_end_date<=saved.period_end_date);
+ }));
  $('utilityCompanyElectricInternal').textContent=electric===null?'Chưa có dữ liệu':(datesMatch?utilityFmt(electric)+' kWh':'Chưa thể đối chiếu: ngày chốt / phạm vi kỳ chưa khớp');
  $('utilityCompanyWaterInternal').textContent=water===null?'Chưa có dữ liệu':(datesMatch?utilityFmt(water)+' m³':'Chưa thể đối chiếu: ngày chốt / phạm vi kỳ chưa khớp');
 }
