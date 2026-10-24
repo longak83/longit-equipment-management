@@ -4,6 +4,8 @@ begin;
 
 create table if not exists public.utility_company_totals (
   period_key text primary key,
+  period_start_date date,
+  period_end_date date,
   electric_total_kwh numeric(16,3),
   water_total_m3 numeric(16,3),
   source_notes text,
@@ -14,7 +16,9 @@ create table if not exists public.utility_company_totals (
   constraint utility_company_totals_electric_nonnegative
     check (electric_total_kwh is null or electric_total_kwh >= 0),
   constraint utility_company_totals_water_nonnegative
-    check (water_total_m3 is null or water_total_m3 >= 0)
+    check (water_total_m3 is null or water_total_m3 >= 0),
+  constraint utility_company_totals_dates_check
+    check (period_start_date is null or period_end_date is null or period_start_date <= period_end_date)
 );
 
 create table if not exists public.utility_report_notes (
