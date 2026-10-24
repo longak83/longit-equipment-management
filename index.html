@@ -348,7 +348,7 @@ async function prepareUtilityBill(){
  if(t&&endDate&&client&&session){
   const meters=utilityMeters.filter(function(m){return m.active&&(m.utility_rooms||{}).tenant_id===t.id});
   for(const m of meters){
-   const result=await client.from('utility_meter_readings').select('*').eq('meter_id',m.id).lt('reading_date',$('utilityBillStartDate').value).order('reading_date',{ascending:false}).order('created_at',{ascending:false}).limit(1);
+   const result=await client.from('utility_meter_readings').select('*').eq('meter_id',m.id).lte('reading_date',$('utilityBillStartDate').value).order('reading_date',{ascending:false}).order('created_at',{ascending:false}).limit(1);
    if(result.data&&result.data[0])savedRows.push({meter_id:m.id,previous_reading:result.data[0].reading_value});
   }
  }
