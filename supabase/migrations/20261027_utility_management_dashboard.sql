@@ -12,7 +12,7 @@ create table if not exists public.utility_company_totals (
   updated_at timestamptz not null default now(),
   created_at timestamptz not null default now(),
   constraint utility_company_totals_period_key_check
-    check (period_key ~ '^\d{4}-Q[1-4]$'),
+    check (period_key ~ '^[0-9]{4}-Q[1-4]$'),
   constraint utility_company_totals_electric_nonnegative
     check (electric_total_kwh is null or electric_total_kwh >= 0),
   constraint utility_company_totals_water_nonnegative
@@ -35,7 +35,7 @@ create table if not exists public.utility_report_notes (
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now(),
   constraint utility_report_notes_period_key_check
-    check (period_key ~ '^\d{4}(-Q[1-4]|-\d{2})?$')
+    check (period_key ~ '^[0-9]{4}(-Q[1-4]|-[0-9]{2})?$')
 );
 
 create index if not exists utility_report_notes_period_idx
