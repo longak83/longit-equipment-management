@@ -516,8 +516,8 @@ function renderUtilityCompanyTotals(){
  const waterComparison=utilityCompanyResourceComparison(tenantRows,'water',saved?.water_start_date||saved?.period_start_date,saved?.water_end_date||saved?.period_end_date);
  const electricInternal=saved&&saved.electric_total_kwh!==null&&saved.electric_total_kwh!==undefined&&electricComparison.ok?Number(saved.electric_total_kwh)-electricComparison.usage:null;
  const waterInternal=saved&&saved.water_total_m3!==null&&saved.water_total_m3!==undefined&&waterComparison.ok?Number(saved.water_total_m3)-waterComparison.usage:null;
- $('utilityCompanyElectricInternal').textContent=electricInternal===null?(saved?.electric_total_kwh!==null&&saved?.electric_total_kwh!==undefined?'Chưa thể đối chiếu điện: thiếu dữ liệu hoặc kỳ không tương đương':'Chưa có dữ liệu'):(electricComparison.exact?utilityFmt(electricInternal)+' kWh':'Ước tính theo ngày: '+utilityFmt(electricInternal)+' kWh');
- $('utilityCompanyWaterInternal').textContent=waterInternal===null?(saved?.water_total_m3!==null&&saved?.water_total_m3!==undefined?'Chưa thể đối chiếu nước: thiếu dữ liệu hoặc kỳ không tương đương':'Chưa có dữ liệu'):(waterComparison.exact?utilityFmt(waterInternal)+' m³':'Ước tính theo ngày: '+utilityFmt(waterInternal)+' m³');
+ $('utilityCompanyElectricInternal').textContent=electricInternal===null?(saved&&saved.electric_total_kwh!==null&&saved.electric_total_kwh!==undefined?'Chưa thể đối chiếu điện: thiếu dữ liệu hoặc kỳ không tương đương':'Chưa có dữ liệu'):(electricComparison.exact?utilityFmt(electricInternal)+' kWh':'Ước tính theo ngày: '+utilityFmt(electricInternal)+' kWh');
+ $('utilityCompanyWaterInternal').textContent=waterInternal===null?(saved&&saved.water_total_m3!==null&&saved.water_total_m3!==undefined?'Chưa thể đối chiếu nước: thiếu dữ liệu hoặc kỳ không tương đương':'Chưa có dữ liệu'):(waterComparison.exact?utilityFmt(waterInternal)+' m³':'Ước tính theo ngày: '+utilityFmt(waterInternal)+' m³');
 }
 function renderUtilityManagementReport(){
  const periodSelect=$('utilityReportPeriod'),tenantSelect=$('utilityReportTenant');if(!periodSelect||!tenantSelect)return;
