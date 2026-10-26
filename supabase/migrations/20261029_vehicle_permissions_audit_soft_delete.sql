@@ -99,6 +99,9 @@ begin
   if TG_OP = 'UPDATE' then v_after := to_jsonb(new); end if;
   if TG_TABLE_NAME = 'vehicle_details' then
     if TG_OP = 'DELETE' then v_id := old.asset_id::text; else v_id := new.asset_id::text; end if;
+  elsif TG_TABLE_NAME = 'module_permissions' then
+    if TG_OP = 'DELETE' then v_id := old.user_id::text || ':' || old.module_key;
+    else v_id := new.user_id::text || ':' || new.module_key; end if;
   else
     if TG_OP = 'DELETE' then v_id := old.id::text; else v_id := new.id::text; end if;
   end if;
@@ -116,6 +119,10 @@ begin
   if TG_OP = 'DELETE' then return old; else return new; end if;
 end;
 $$;
+
+drop trigger if exists module_permissions_sensitive_audit on public.module_permissions;
+create trigger module_permissions_sensitive_audit after insert or update or delete on public.module_permissions
+for each row execute function public.log_sensitive_record_changes();
 
 drop trigger if exists assets_audit_log on public.assets;
 drop trigger if exists assets_sensitive_audit on public.assets;
@@ -162,7 +169,8 @@ create policy "no hard delete assets" on public.assets for delete to authenticat
 -- Vehicle detail rows have their own permission checks. Soft-deletion is an UPDATE.
 drop policy if exists "authenticated read vehicle details" on public.vehicle_details;
 create policy "authenticated read vehicle details" on public.vehicle_details for select to authenticated
-  using (deleted_at is null or public.current_user_role() = 'admin');
+  using (public.has_module_permission('vehicles','view')
+    and (deleted_at is null or public.current_user_role() = 'admin'));
 drop policy if exists "editors insert vehicle details" on public.vehicle_details;
 create policy "vehicle managers insert vehicle details" on public.vehicle_details for insert to authenticated
   with check (public.has_module_permission('vehicles','create'));
@@ -203,9 +211,10 @@ create policy "update maintenance by module permission" on public.maintenance_re
   )
   with check (
     exists (select 1 from public.assets a where a.id = maintenance_records.asset_id and a.category = 'Ô tô'
-      and public.has_module_permission('vehicles','update'))
+      and public.has_module_permission('vehicles','update')
+      and (maintenance_records.deleted_at is null or public.has_module_permission('vehicles','delete')))
     or exists (select 1 from public.assets a where a.id = maintenance_records.asset_id and a.category <> 'Ô tô'
-      and public.has_write_access())
+      and public.has_write_access() and (maintenance_records.deleted_at is null or public.current_user_role() = 'admin'))
   );
 drop policy if exists "admins delete maintenance" on public.maintenance_records;
 create policy "no hard delete maintenance records" on public.maintenance_records for delete to authenticated using (false);
