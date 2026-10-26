@@ -43,7 +43,7 @@
    supabase functions deploy admin-users
    ```
 4. Xác nhận Function `admin-users` đã deploy thành công trong Supabase Dashboard.
-5. Đăng nhập bằng Admin trên website để mở **Tài khoản người dùng**. Admin có thể tạo user với email, mật khẩu ban đầu (tối thiểu 8 ký tự) và vai trò Admin/Editor/Viewer.
+5. Đăng nhập bằng Admin trên website để mở **Tài khoản người dùng**. Admin có thể tạo tài khoản nội bộ bằng tên đăng nhập ngắn (3–32 ký tự, không cần email thật), mật khẩu ban đầu (tối thiểu 8 ký tự) và vai trò Admin/Editor/Viewer. Tài khoản nội bộ dùng định danh Supabase dạng `ten-dang-nhap@longit.local`; người dùng chỉ cần nhập tên đăng nhập khi đăng nhập. Tài khoản hiện có dùng email thật vẫn đăng nhập bằng email như trước.
 6. Gửi mật khẩu ban đầu qua kênh riêng an toàn và yêu cầu người dùng đổi mật khẩu sau lần đăng nhập đầu tiên. Hiện ứng dụng không tự gửi email mời hoặc tự ép đổi mật khẩu.
 
 **Lưu ý bảo mật:** không tạo chức năng đăng ký công khai. Chỉ Admin được phép cấp vai trò. RLS phải được kiểm thử trên dữ liệu thật; không bật đọc công khai mặc định cho dữ liệu nội bộ.
@@ -65,6 +65,6 @@
 ## Kiểm tra trước khi sử dụng thật
 - Thử bằng ba tài khoản `admin`, `editor`, `viewer`; xác nhận viewer không thể ghi dữ liệu ngay cả khi gọi API trực tiếp.
 - Xác nhận người không phải Admin nhận HTTP 403 từ Edge Function; không thể tự nâng vai trò qua REST API.
-- Kiểm tra tạo tài khoản, email trùng, mật khẩu yếu, đổi vai trò, vô hiệu hóa/kích hoạt và bảo vệ Admin cuối cùng.
+- Kiểm tra tạo tài khoản, tên đăng nhập trùng, mật khẩu yếu, đăng nhập bằng tên ngắn và bằng email cho tài khoản cũ, đổi vai trò, vô hiệu hóa/kích hoạt và bảo vệ Admin cuối cùng.
 - Kiểm tra audit log, sao lưu và khôi phục dữ liệu.
 - Tên hiển thị hiện tại là **Quản trị hành chính**; tên repository/URL GitHub vẫn là `longit-equipment-management` để không làm hỏng đường dẫn website.
