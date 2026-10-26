@@ -46,11 +46,7 @@
 5. Đăng nhập bằng Admin trên website để mở **Tài khoản người dùng**. Admin có thể tạo user với email, mật khẩu ban đầu (tối thiểu 12 ký tự) và vai trò Admin/Editor/Viewer.
 6. Gửi mật khẩu ban đầu qua kênh riêng an toàn và yêu cầu người dùng đổi mật khẩu sau lần đăng nhập đầu tiên. Hiện ứng dụng không tự gửi email mời hoặc tự ép đổi mật khẩu.
 
-### 4. Đưa lên GitHub Pages
-
-**Lưu ý bảo mật:** không tạo chức năng đăng ký công khai. Chỉ admin được phép cấp vai trò. Chính sách RLS mặc định yêu cầu đăng nhập để đọc dữ liệu tài sản và chỉ admin/editor được thêm/sửa; chỉ admin được xóa. Đây là lựa chọn an toàn cho dữ liệu nội bộ. Nếu muốn trang tra cứu không cần đăng nhập, hãy chỉ bật quyền đọc công khai sau khi xác nhận toàn bộ trường dữ liệu trong `assets` được phép công khai; không bật một cách mặc định cho dữ liệu nội bộ.
-
-### 4. Đưa lên GitHub Pages
+**Lưu ý bảo mật:** không tạo chức năng đăng ký công khai. Chỉ Admin được phép cấp vai trò. RLS phải được kiểm thử trên dữ liệu thật; không bật đọc công khai mặc định cho dữ liệu nội bộ.
 1. Giải nén ZIP.
 2. Trong repository `longak83/longit-equipment-management`, upload `index.html`, `README.md` và thư mục `supabase` (các file nằm ở root repository, không để lồng thêm thư mục `longit-v2`).
 3. Commit lên nhánh `main`.
