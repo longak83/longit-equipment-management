@@ -78,3 +78,9 @@
 - Kiểm tra tạo tài khoản, email trùng, mật khẩu yếu, đổi vai trò, vô hiệu hóa/kích hoạt và bảo vệ Admin cuối cùng.
 - Kiểm tra audit log, sao lưu và khôi phục dữ liệu.
 - Tên hiển thị hiện tại là **Quản trị hành chính**; tên repository/URL GitHub vẫn là `longit-equipment-management` để không làm hỏng đường dẫn website.
+
+
+### Tên đăng nhập nội bộ
+- Admin tạo tài khoản bằng tên đăng nhập ngắn (3–32 ký tự: chữ không dấu, số, dấu chấm, gạch dưới hoặc gạch ngang).
+- Hệ thống ánh xạ tên đăng nhập sang định danh Supabase nội bộ `username@longit.local`; nhân viên chỉ cần nhập tên đăng nhập khi tạo và đăng nhập.
+- Tài khoản email hiện có tiếp tục đăng nhập bằng email như trước.
