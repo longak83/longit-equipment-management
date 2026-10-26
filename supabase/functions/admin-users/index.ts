@@ -97,7 +97,7 @@ Deno.serve(async (req: Request) => {
       const role = String(body.role || "editor");
       if (!displayName || displayName.length > 120) return json({ error: "Họ tên là bắt buộc và tối đa 120 ký tự." }, 400);
       if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email) || email.length > 254) return json({ error: "Email không hợp lệ." }, 400);
-      if (password.length < 12 || password.length > 128) return json({ error: "Mật khẩu ban đầu phải từ 12 đến 128 ký tự." }, 400);
+      if (password.length < 8 || password.length > 128) return json({ error: "Mật khẩu ban đầu phải từ 8 đến 128 ký tự." }, 400);
       if (!validRoles.has(role)) return json({ error: "Vai trò không hợp lệ." }, 400);
       const { data: created, error: createError } = await adminClient.auth.admin.createUser({
         email, password, email_confirm: true, user_metadata: { display_name: displayName },
