@@ -92,3 +92,11 @@
 - Phân quyền module cho phép cấu hình xem/thêm/sửa/xóa/xuất cho Phương tiện, Tài sản & thiết bị, Sửa chữa/bảo trì, Dịch vụ thuê ngoài, Điện nước, Báo cáo và Nhập dữ liệu.
 - Lưu ý: cấu hình quyền hiện được thực thi trực tiếp bởi RLS cho module Phương tiện. Với các module còn lại, cần bổ sung và kiểm thử các chính sách RLS cụ thể cho từng bảng trước khi coi phân quyền đó là giới hạn bảo mật có hiệu lực.
 - Edge Function dùng secret key mặc định từ `SUPABASE_SECRET_KEYS`; không đưa khóa bí mật vào mã frontend.
+
+
+### 5. Thực thi phân quyền module tại cơ sở dữ liệu
+1. Sau khi các migration nền đã được áp dụng, chạy `supabase/migrations/20261030_enforce_module_permissions.sql` trong Supabase SQL Editor.
+2. Migration áp dụng quyền Xem/Thêm/Sửa/Xóa cho các module Phương tiện, Tài sản & thiết bị, Sửa chữa/bảo trì, Bản quyền & gia hạn, Dịch vụ thuê ngoài và Điện nước tại RLS; các API trực tiếp cũng chịu cùng chính sách.
+3. Khi Admin lưu cấu hình quyền module cho một tài khoản, các quyền tương ứng trở thành cấu hình riêng của tài khoản đó. Tài khoản chưa có cấu hình riêng vẫn giữ hành vi tương thích Admin/Editor/Viewer hiện tại.
+4. Quyền **Xuất** được lưu trong `module_permissions`, nhưng cần nối với từng nút xuất dữ liệu trên giao diện. RLS không có quyền xuất riêng; dữ liệu xuất vẫn phụ thuộc quyền đọc của module.
+5. Sau khi chạy migration, kiểm thử bằng tài khoản Admin, Editor và Viewer; đặc biệt thử gọi API trực tiếp khi quyền Xem/Thêm/Sửa/Xóa bị tắt. Không chỉ dựa vào việc ẩn nút trên giao diện.
