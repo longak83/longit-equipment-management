@@ -1,12 +1,14 @@
-# Longit — Quản lý tài sản & thiết bị
+# Quản trị hành chính — Hệ thống quản trị nội bộ
 
-© 2026 Longit — All rights reserved.
+© 2026 Quản trị hành chính.
 
-Đây là bộ nền tảng MVP mở rộng từ dashboard Longit: giao diện responsive, đăng nhập Supabase Auth, danh mục tài sản dùng chung, tìm kiếm/lọc, thêm/sửa/xóa có phân quyền tại database và schema cho nghiệp vụ mở rộng.
+Ứng dụng nội bộ quản lý tài sản, thiết bị, bảo trì, dịch vụ thuê ngoài, điện nước và tài khoản người dùng. Giao diện web tĩnh dùng Supabase Auth, PostgreSQL/RLS và Supabase Edge Functions cho các thao tác quản trị đặc quyền.
 
 ## Hiện đã có trong bộ mã nguồn
-- `index.html`: giao diện Longit, dashboard, danh mục tài sản, đăng nhập thật qua Supabase Auth, CRUD tài sản, lọc theo nhóm/trạng thái.
-- `supabase/schema.sql`: schema PostgreSQL, RLS, vai trò admin/editor/viewer, danh mục nhóm thiết bị, hồ sơ tài sản, sự cố/bảo trì, bàn giao, điều chuyển, thuộc tính mở rộng và audit log cho bảng assets.
+- `index.html`: giao diện Quản trị hành chính, đăng nhập Supabase Auth, danh mục tài sản và trang quản lý tài khoản chỉ dành cho Admin.
+- `supabase/schema.sql`: schema PostgreSQL và RLS cho các bảng nghiệp vụ; vai trò `admin`, `editor`, `viewer`.
+- `supabase/migrations/20261028_admin_user_management.sql`: khóa quyền tự nâng vai trò, chỉ Admin được quản trị bảng vai trò.
+- `supabase/functions/admin-users/index.ts`: Edge Function bảo vệ bằng JWT + kiểm tra vai trò Admin, dùng service-role key chỉ ở phía server để tạo tài khoản, đổi vai trò, vô hiệu hóa/kích hoạt và liệt kê tài khoản.
 - Không nhúng dữ liệu tài sản thật vào mã nguồn. Khi chưa cấu hình Supabase, ứng dụng không ghi dữ liệu và không giả lập đăng nhập.
 
 ## Triển khai
@@ -22,25 +24,38 @@
    ```
    Điền URL và publishable/anon key. Chỉ dùng key công khai dành cho frontend; tuyệt đối không dùng `service_role`/secret key trong trình duyệt.
 
-### 2. Tạo tài khoản admin
-1. Trong Supabase, vào **Authentication → Users → Add user**, tạo user với email và mật khẩu của bà.
-2. Sao chép UUID của user vừa tạo.
-3. Trong SQL Editor, chạy câu lệnh dưới đây, thay UUID mẫu bằng UUID thật:
+### 2. Cấp quyền Admin đầu tiên
+1. Tạo tài khoản đầu tiên trong **Supabase → Authentication → Users → Add user**.
+2. Trong SQL Editor, cấp vai trò Admin bằng email đã tạo (thay email mẫu):
    ```sql
    insert into public.user_roles(user_id, role)
-   values ('00000000-0000-0000-0000-000000000000', 'admin')
-   on conflict (user_id) do update set role = excluded.role;
+   select id, 'admin' from auth.users where lower(email) = lower('admin@example.com')
+   on conflict (user_id) do update set role = 'admin';
    ```
-4. Đăng nhập từ nút **Đăng nhập quản lý** trên web.
+3. Chỉ thực hiện bootstrap này cho tài khoản quản trị tin cậy đầu tiên. Không cho người dùng tự đăng ký hoặc tự cập nhật vai trò.
+4. Chạy migration `supabase/migrations/20261028_admin_user_management.sql` trong **SQL Editor** của project hiện có.
+
+### 3. Triển khai Edge Function quản lý tài khoản
+1. Cài đặt và đăng nhập Supabase CLI, liên kết đúng project ID.
+2. Đảm bảo secret `SUPABASE_SERVICE_ROLE_KEY` có trong môi trường Edge Functions của project. Lấy key từ Supabase Dashboard; **không commit key vào repository, không đưa vào `index.html`**.
+3. Từ thư mục repository, triển khai:
+   ```bash
+   supabase functions deploy admin-users
+   ```
+4. Xác nhận Function `admin-users` đã deploy thành công trong Supabase Dashboard.
+5. Đăng nhập bằng Admin trên website để mở **Tài khoản người dùng**. Admin có thể tạo user với email, mật khẩu ban đầu (tối thiểu 12 ký tự) và vai trò Admin/Editor/Viewer.
+6. Gửi mật khẩu ban đầu qua kênh riêng an toàn và yêu cầu người dùng đổi mật khẩu sau lần đăng nhập đầu tiên. Hiện ứng dụng không tự gửi email mời hoặc tự ép đổi mật khẩu.
+
+### 4. Đưa lên GitHub Pages
 
 **Lưu ý bảo mật:** không tạo chức năng đăng ký công khai. Chỉ admin được phép cấp vai trò. Chính sách RLS mặc định yêu cầu đăng nhập để đọc dữ liệu tài sản và chỉ admin/editor được thêm/sửa; chỉ admin được xóa. Đây là lựa chọn an toàn cho dữ liệu nội bộ. Nếu muốn trang tra cứu không cần đăng nhập, hãy chỉ bật quyền đọc công khai sau khi xác nhận toàn bộ trường dữ liệu trong `assets` được phép công khai; không bật một cách mặc định cho dữ liệu nội bộ.
 
-### 3. Đưa lên GitHub Pages
+### 4. Đưa lên GitHub Pages
 1. Giải nén ZIP.
 2. Trong repository `longak83/longit-equipment-management`, upload `index.html`, `README.md` và thư mục `supabase` (các file nằm ở root repository, không để lồng thêm thư mục `longit-v2`).
 3. Commit lên nhánh `main`.
 4. Vào **Settings → Pages → Deploy from a branch → `main` → `/(root)` → Save**.
-5. Địa chỉ dự kiến: `https://longak83.github.io/longit-equipment-management/`.
+5. Địa chỉ dự kiến: `https://longak83.github.io/longit-equipment-management/`. Trang quản lý tài khoản chỉ hiện với Admin; thao tác đặc quyền được xác thực lại trong Edge Function.
 
 ## Mô hình dữ liệu
 - `assets`: dữ liệu tài sản chung; mã tài sản duy nhất.
@@ -51,5 +66,9 @@
 - `profiles`, `user_roles`: hồ sơ và phân quyền người dùng.
 - `audit_logs`: nhật ký thay đổi cho bảng tài sản.
 
-## Phạm vi MVP và các bước tiếp theo
-MVP hiện hoàn thiện kết nối Auth + danh mục tài sản CRUD. Các màn hình sự cố/bảo trì, bàn giao/điều chuyển, tải tệp, import Excel/CSV và báo cáo nâng cao được thiết kế trong schema/lộ trình nhưng chưa có UI nghiệp vụ hoàn chỉnh. Trước khi dùng dữ liệu thật, kiểm tra login, RLS bằng tài khoản không có role, quyền editor/admin, mã tài sản trùng, sao lưu và khôi phục dữ liệu.
+## Kiểm tra trước khi sử dụng thật
+- Thử bằng ba tài khoản `admin`, `editor`, `viewer`; xác nhận viewer không thể ghi dữ liệu ngay cả khi gọi API trực tiếp.
+- Xác nhận người không phải Admin nhận HTTP 403 từ Edge Function; không thể tự nâng vai trò qua REST API.
+- Kiểm tra tạo tài khoản, email trùng, mật khẩu yếu, đổi vai trò, vô hiệu hóa/kích hoạt và bảo vệ Admin cuối cùng.
+- Kiểm tra audit log, sao lưu và khôi phục dữ liệu.
+- Tên hiển thị hiện tại là **Quản trị hành chính**; tên repository/URL GitHub vẫn là `longit-equipment-management` để không làm hỏng đường dẫn website.
