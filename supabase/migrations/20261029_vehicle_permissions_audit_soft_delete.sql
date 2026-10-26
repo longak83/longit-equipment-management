@@ -224,6 +224,9 @@ create policy "no hard delete maintenance records" on public.maintenance_records
 drop policy if exists "admins read audit logs" on public.audit_logs;
 create policy "admins or vehicle managers read audit logs" on public.audit_logs for select to authenticated
   using (public.current_user_role() = 'admin' or
-    (table_name in ('assets','vehicle_details','maintenance_records') and public.has_module_permission('vehicles','view')));
+    (table_name in ('assets','vehicle_details','maintenance_records') and exists (
+      select 1 from public.module_permissions mp
+      where mp.user_id = auth.uid() and mp.module_key = 'vehicles' and mp.can_view
+    )));
 
 commit;
