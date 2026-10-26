@@ -137,9 +137,15 @@ create policy "editors update assets" on public.assets for update to authenticat
 create policy "admins delete assets" on public.assets for delete to authenticated using (public.current_user_role() = 'admin');
 create policy "authenticated read categories" on public.asset_categories for select to authenticated using (true);
 create policy "admins manage categories" on public.asset_categories for all to authenticated using (public.current_user_role()='admin') with check (public.current_user_role()='admin');
-create policy "admins manage roles" on public.user_roles for all to authenticated using (public.current_user_role()='admin' or user_id=auth.uid()) with check (public.current_user_role()='admin' or user_id=auth.uid());
-create policy "users read own profile" on public.profiles for select to authenticated using (id=auth.uid() or public.current_user_role()='admin');
-create policy "users update own profile" on public.profiles for update to authenticated using (id=auth.uid()) with check (id=auth.uid());
+alter table public.user_roles enable row level security;
+alter table public.profiles enable row level security;
+drop policy if exists "admins manage roles" on public.user_roles;
+drop policy if exists "users read own profile" on public.profiles;
+drop policy if exists "users update own profile" on public.profiles;
+create policy "users read own role or admins read all" on public.user_roles for select to authenticated using (user_id = auth.uid() or public.current_user_role() = 'admin');
+create policy "admins manage roles" on public.user_roles for all to authenticated using (public.current_user_role() = 'admin') with check (public.current_user_role() = 'admin');
+create policy "users read own profile or admins read all" on public.profiles for select to authenticated using (id = auth.uid() or public.current_user_role() = 'admin');
+create policy "users update own profile" on public.profiles for update to authenticated using (id = auth.uid()) with check (id = auth.uid());
 create policy "authenticated read departments" on public.departments for select to authenticated using (true);
 create policy "admins manage departments" on public.departments for all to authenticated using (public.current_user_role()='admin') with check (public.current_user_role()='admin');
 create policy "authenticated read locations" on public.locations for select to authenticated using (true);
