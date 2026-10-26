@@ -20,7 +20,7 @@ Deno.serve(async (req: Request) => {
 
   const supabaseUrl = Deno.env.get("SUPABASE_URL");
   const anonKey = Deno.env.get("SUPABASE_ANON_KEY");
-  const serviceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
+  const serviceRoleKey = JSON.parse(Deno.env.get("SUPABASE_SECRET_KEYS") || "{}").default;
   if (!supabaseUrl || !anonKey || !serviceRoleKey) {
     return json({ error: "Thiếu cấu hình secrets cho Edge Function." }, 500);
   }
@@ -82,9 +82,11 @@ Deno.serve(async (req: Request) => {
       return json({ users: users.map((u) => ({
         id: u.id,
         email: u.email || "",
+        username: String(u.user_metadata?.username || ((u.email || "").toLowerCase().endsWith("@longit.local") ? (u.email || "").slice(0, -13) : "")),
         display_name: profileMap.get(u.id)?.display_name || u.user_metadata?.display_name || "",
         role: roleMap.get(u.id) || "viewer",
         disabled: !!(u.banned_until && new Date(u.banned_until).getTime() > Date.now()),
+        archived: u.user_metadata?.account_archived === true,
         created_at: u.created_at,
         last_sign_in_at: u.last_sign_in_at || null,
       })) });
@@ -112,13 +114,76 @@ Deno.serve(async (req: Request) => {
         return json({ error: "Không lưu được hồ sơ/vai trò; tài khoản vừa tạo đã được hoàn tác." }, 500);
       }
       await writeAudit(id, "CREATE_USER", { email, role, display_name: displayName });
-      return json({ user: { id, email, username, display_name: displayName, role, disabled: false, created_at: created.user.created_at } }, 201);
+      return json({ user: { id, email, username, display_name: displayName, role, disabled: false, archived: false, created_at: created.user.created_at } }, 201);
     }
 
     const userId = String(body.user_id || "");
     if (!userId) return json({ error: "Thiếu user_id." }, 400);
-    if (userId === callerId && ["update_role", "disable"].includes(action)) {
+    if (userId === callerId && ["update_role", "disable", "archive"].includes(action)) {
       return json({ error: "Không thể tự đổi vai trò hoặc vô hiệu hóa chính tài khoản đang đăng nhập." }, 400);
+    }
+
+    if (action === "update_user") {
+      const displayName = String(body.display_name || "").trim();
+      const login = String(body.login || "").trim().toLowerCase();
+      if (!displayName || displayName.length > 120) return json({ error: "Họ tên là bắt buộc và tối đa 120 ký tự." }, 400);
+      const isEmail = login.includes("@");
+      if (isEmail ? !/^[^\\s@]+@[^\\s@]+\\.[^\\s@]+$/.test(login) : !/^[a-z0-9._-]{3,32}$/.test(login)) {
+        return json({ error: "Tên đăng nhập phải dài 3–32 ký tự hoặc nhập email hợp lệ." }, 400);
+      }
+      const { data: targetResult, error: targetError } = await adminClient.auth.admin.getUserById(userId);
+      if (targetError || !targetResult.user) return json({ error: "Không tìm thấy tài khoản." }, 404);
+      const target = targetResult.user;
+      const email = isEmail ? login : `${login}@longit.local`;
+      const allUsers = await listAllUsers();
+      if (allUsers.some((u) => u.id !== userId && (u.email || "").toLowerCase() === email)) {
+        return json({ error: "Tên đăng nhập/email này đã được sử dụng." }, 409);
+      }
+      const metadata = { ...(target.user_metadata || {}), display_name: displayName };
+      if (isEmail) delete metadata.username;
+      else metadata.username = login;
+      const { error: authUpdateError } = await adminClient.auth.admin.updateUserById(userId, {
+        email, email_confirm: true, user_metadata: metadata,
+      });
+      if (authUpdateError) return json({ error: authUpdateError.message }, 400);
+      const { error: profileError } = await adminClient.from("profiles").upsert({ id: userId, display_name: displayName });
+      if (profileError) throw profileError;
+      await writeAudit(userId, "UPDATE_USER", { email, login, display_name: displayName });
+      return json({ ok: true });
+    }
+
+    if (action === "reset_password") {
+      const password = String(body.password || "");
+      if (password.length < 8 || password.length > 128) return json({ error: "Mật khẩu phải từ 8 đến 128 ký tự." }, 400);
+      const { data: targetResult, error: targetError } = await adminClient.auth.admin.getUserById(userId);
+      if (targetError || !targetResult.user) return json({ error: "Không tìm thấy tài khoản." }, 404);
+      const { error } = await adminClient.auth.admin.updateUserById(userId, { password });
+      if (error) return json({ error: error.message }, 400);
+      await writeAudit(userId, "RESET_PASSWORD", { reset_by_admin: true });
+      return json({ ok: true });
+    }
+
+    if (action === "archive" || action === "restore_archive") {
+      const { data: targetResult, error: targetError } = await adminClient.auth.admin.getUserById(userId);
+      if (targetError || !targetResult.user) return json({ error: "Không tìm thấy tài khoản." }, 404);
+      const target = targetResult.user;
+      const { data: targetRole, error: targetRoleError } = await adminClient.from("user_roles").select("role").eq("user_id", userId).maybeSingle();
+      if (targetRoleError) throw targetRoleError;
+      if (action === "archive" && targetRole?.role === "admin") {
+        const allUsers = await listAllUsers();
+        const activeIds = new Set(allUsers.filter((u) => !u.banned_until || new Date(u.banned_until).getTime() <= Date.now()).map((u) => u.id));
+        const { count, error } = await adminClient.from("user_roles").select("*", { count: "exact", head: true }).eq("role", "admin").in("user_id", [...activeIds]);
+        if (error) throw error;
+        if ((count || 0) <= 1) return json({ error: "Không thể lưu trữ Admin cuối cùng đang hoạt động." }, 400);
+      }
+      const archived = action === "archive";
+      const { error } = await adminClient.auth.admin.updateUserById(userId, {
+        ban_duration: archived ? "876000h" : "none",
+        user_metadata: { ...(target.user_metadata || {}), account_archived: archived },
+      });
+      if (error) throw error;
+      await writeAudit(userId, archived ? "ARCHIVE_USER" : "RESTORE_ARCHIVED_USER", { archived, role: targetRole?.role || "viewer" });
+      return json({ ok: true });
     }
 
     if (action === "update_role") {
