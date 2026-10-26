@@ -91,12 +91,19 @@ declare
   v_before jsonb;
   v_after jsonb;
   v_id text;
+  v_action text := TG_OP;
   v_table text := TG_TABLE_NAME;
 begin
   if TG_OP = 'UPDATE' then v_before := to_jsonb(old); end if;
   if TG_OP = 'DELETE' then v_before := to_jsonb(old); end if;
   if TG_OP = 'INSERT' then v_after := to_jsonb(new); end if;
   if TG_OP = 'UPDATE' then v_after := to_jsonb(new); end if;
+  if TG_OP = 'UPDATE' then
+    if (to_jsonb(new)->>'deleted_at') is distinct from (to_jsonb(old)->>'deleted_at') then
+      if (to_jsonb(new)->>'deleted_at') is null then v_action := 'RESTORE';
+      else v_action := 'SOFT_DELETE'; end if;
+    end if;
+  end if;
   if TG_TABLE_NAME = 'vehicle_details' then
     if TG_OP = 'DELETE' then v_id := old.asset_id::text; else v_id := new.asset_id::text; end if;
   elsif TG_TABLE_NAME = 'module_permissions' then
@@ -107,15 +114,8 @@ begin
   end if;
 
   insert into public.audit_logs(actor_id, table_name, record_id, action, before_data, after_data)
-  values(auth.uid(), v_table, v_id,
-    case
-      when TG_OP = 'UPDATE' and (to_jsonb(new)->>'deleted_at') is distinct from (to_jsonb(old)->>'deleted_at')
-        and (to_jsonb(new)->>'deleted_at') is not null then 'SOFT_DELETE'
-      when TG_OP = 'UPDATE' and (to_jsonb(new)->>'deleted_at') is distinct from (to_jsonb(old)->>'deleted_at')
-        and (to_jsonb(new)->>'deleted_at') is null then 'RESTORE'
-      else TG_OP
-    end,
-    v_before, v_after);
+  values(auth.uid(), v_table, v_id, v_action, v_before, v_after);
+
   if TG_OP = 'DELETE' then return old; else return new; end if;
 end;
 $$;
