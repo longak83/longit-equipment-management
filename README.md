@@ -84,3 +84,11 @@
 - Admin tạo tài khoản bằng tên đăng nhập ngắn (3–32 ký tự: chữ không dấu, số, dấu chấm, gạch dưới hoặc gạch ngang).
 - Hệ thống ánh xạ tên đăng nhập sang định danh Supabase nội bộ `username@longit.local`; nhân viên chỉ cần nhập tên đăng nhập khi tạo và đăng nhập.
 - Tài khoản email hiện có tiếp tục đăng nhập bằng email như trước.
+
+
+### Quản lý tài khoản — các chức năng bổ sung
+- Trong trang tài khoản, Admin có thể sửa họ tên/tên đăng nhập hoặc email, đặt lại mật khẩu, thay đổi vai trò, vô hiệu hóa/kích hoạt và lưu trữ/khôi phục tài khoản.
+- Lưu trữ sẽ khóa đăng nhập nhưng không xóa hồ sơ nghiệp vụ; thao tác được ghi vào nhật ký. Không thể lưu trữ Admin cuối cùng đang hoạt động.
+- Phân quyền module cho phép cấu hình xem/thêm/sửa/xóa/xuất cho Phương tiện, Tài sản & thiết bị, Sửa chữa/bảo trì, Dịch vụ thuê ngoài, Điện nước, Báo cáo và Nhập dữ liệu.
+- Lưu ý: cấu hình quyền hiện được thực thi trực tiếp bởi RLS cho module Phương tiện. Với các module còn lại, cần bổ sung và kiểm thử các chính sách RLS cụ thể cho từng bảng trước khi coi phân quyền đó là giới hạn bảo mật có hiệu lực.
+- Edge Function dùng secret key mặc định từ `SUPABASE_SECRET_KEYS`; không đưa khóa bí mật vào mã frontend.
