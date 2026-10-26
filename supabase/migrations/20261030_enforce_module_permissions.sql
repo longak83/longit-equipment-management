@@ -99,6 +99,10 @@ on public.maintenance_records for delete to authenticated using (false);
 -- Assignment and transfer history follows the corresponding asset module.
 drop policy if exists "authenticated read assignments" on public.asset_assignments;
 drop policy if exists "editors manage assignments" on public.asset_assignments;
+drop policy if exists "read assignments by module permission" on public.asset_assignments;
+drop policy if exists "insert assignments by module permission" on public.asset_assignments;
+drop policy if exists "update assignments by module permission" on public.asset_assignments;
+drop policy if exists "delete assignments by module permission" on public.asset_assignments;
 create policy "read assignments by module permission"
 on public.asset_assignments for select to authenticated
 using (exists (
@@ -134,6 +138,10 @@ using (exists (
 ));
 drop policy if exists "authenticated read transfers" on public.asset_transfers;
 drop policy if exists "editors manage transfers" on public.asset_transfers;
+drop policy if exists "read transfers by module permission" on public.asset_transfers;
+drop policy if exists "insert transfers by module permission" on public.asset_transfers;
+drop policy if exists "update transfers by module permission" on public.asset_transfers;
+drop policy if exists "delete transfers by module permission" on public.asset_transfers;
 create policy "read transfers by module permission"
 on public.asset_transfers for select to authenticated
 using (exists (
@@ -170,6 +178,10 @@ using (exists (
 
 drop policy if exists "authenticated read attribute values" on public.asset_attribute_values;
 drop policy if exists "editors manage attribute values" on public.asset_attribute_values;
+drop policy if exists "read attribute values by module permission" on public.asset_attribute_values;
+drop policy if exists "insert attribute values by module permission" on public.asset_attribute_values;
+drop policy if exists "update attribute values by module permission" on public.asset_attribute_values;
+drop policy if exists "delete attribute values by module permission" on public.asset_attribute_values;
 create policy "read attribute values by module permission"
 on public.asset_attribute_values for select to authenticated
 using (exists (
