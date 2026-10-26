@@ -61,6 +61,16 @@
 - `departments`, `locations`: danh mục tổ chức/vị trí.
 - `profiles`, `user_roles`: hồ sơ và phân quyền người dùng.
 - `audit_logs`: nhật ký thay đổi cho bảng tài sản.
+- `module_permissions`: phân quyền theo module và thao tác; hiện triển khai cho module phương tiện (xem/thêm/sửa/xóa mềm/xuất báo cáo).
+- Nhật ký bất biến cho tài sản, đăng kiểm/bảo hiểm, hồ sơ sửa chữa và thay đổi phân quyền module; lưu dữ liệu trước/sau và actor.
+- Xóa mềm hồ sơ xe và hồ sơ sửa chữa; Admin có thể xem hồ sơ xe đã xóa và khôi phục từ danh mục tài sản.
+
+### 4. Phân quyền module phương tiện và nhật ký thao tác
+1. Chạy migration `supabase/migrations/20261029_vehicle_permissions_audit_soft_delete.sql` trong **Supabase SQL Editor** sau khi các migration về tài sản, tài khoản và `vehicle_details` đã được áp dụng.
+2. Trong **Tài khoản người dùng**, bấm **Quyền phương tiện** ở tài khoản cần phân công, rồi chọn quyền xem/thêm/sửa/xóa mềm/xuất báo cáo. Khi đã có cấu hình riêng cho module `vehicles`, các quyền này thay thế quyền Editor mặc định đối với dữ liệu ô tô.
+3. Xóa hồ sơ xe là xóa mềm; dữ liệu vẫn còn trong database và audit log. Admin có thể bật **Hiện hồ sơ đã xóa** để khôi phục.
+4. Hồ sơ sửa chữa của xe cũng hỗ trợ xóa mềm; nhật ký lưu người thao tác, thời điểm và bản ghi trước/sau. Không cấp quyền ghi trực tiếp vào `audit_logs`.
+5. Migration chỉ được thêm vào repository; **chưa tự chạy trên Supabase**. Chạy migration trên đúng project trước khi sử dụng các nút mới.
 
 ## Kiểm tra trước khi sử dụng thật
 - Thử bằng ba tài khoản `admin`, `editor`, `viewer`; xác nhận viewer không thể ghi dữ liệu ngay cả khi gọi API trực tiếp.
