@@ -92,15 +92,16 @@ Deno.serve(async (req: Request) => {
 
     if (action === "create") {
       const displayName = String(body.display_name || "").trim();
-      const email = String(body.email || "").trim().toLowerCase();
+      const username = String(body.username || "").trim().toLowerCase();
+      const email = `${username}@longit.local`;
       const password = String(body.password || "");
       const role = String(body.role || "editor");
       if (!displayName || displayName.length > 120) return json({ error: "Họ tên là bắt buộc và tối đa 120 ký tự." }, 400);
-      if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email) || email.length > 254) return json({ error: "Email không hợp lệ." }, 400);
+      if (!/^[a-z0-9._-]{3,32}$/.test(username)) return json({ error: "Tên đăng nhập dài 3–32 ký tự, chỉ gồm chữ không dấu, số, dấu chấm, gạch dưới hoặc gạch ngang." }, 400);
       if (password.length < 8 || password.length > 128) return json({ error: "Mật khẩu ban đầu phải từ 8 đến 128 ký tự." }, 400);
       if (!validRoles.has(role)) return json({ error: "Vai trò không hợp lệ." }, 400);
       const { data: created, error: createError } = await adminClient.auth.admin.createUser({
-        email, password, email_confirm: true, user_metadata: { display_name: displayName },
+        email, password, email_confirm: true, user_metadata: { display_name: displayName, username },
       });
       if (createError || !created.user) return json({ error: createError?.message || "Không tạo được tài khoản." }, 400);
       const id = created.user.id;
@@ -111,7 +112,7 @@ Deno.serve(async (req: Request) => {
         return json({ error: "Không lưu được hồ sơ/vai trò; tài khoản vừa tạo đã được hoàn tác." }, 500);
       }
       await writeAudit(id, "CREATE_USER", { email, role, display_name: displayName });
-      return json({ user: { id, email, display_name: displayName, role, disabled: false, created_at: created.user.created_at } }, 201);
+      return json({ user: { id, email, username, display_name: displayName, role, disabled: false, created_at: created.user.created_at } }, 201);
     }
 
     const userId = String(body.user_id || "");
