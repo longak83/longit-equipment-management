@@ -106,8 +106,15 @@ using (exists (
     and ((a.category = 'Ô tô' and public.has_module_permission('vehicles','view'))
       or (a.category <> 'Ô tô' and public.has_module_permission('assets','view')))
 ));
-create policy "manage assignments by module permission"
-on public.asset_assignments for all to authenticated
+create policy "insert assignments by module permission"
+on public.asset_assignments for insert to authenticated
+with check (exists (
+  select 1 from public.assets a where a.id = asset_assignments.asset_id
+    and ((a.category = 'Ô tô' and public.has_module_permission('vehicles','create'))
+      or (a.category <> 'Ô tô' and public.has_module_permission('assets','create')))
+));
+create policy "update assignments by module permission"
+on public.asset_assignments for update to authenticated
 using (exists (
   select 1 from public.assets a where a.id = asset_assignments.asset_id
     and ((a.category = 'Ô tô' and public.has_module_permission('vehicles','update'))
@@ -117,6 +124,13 @@ with check (exists (
   select 1 from public.assets a where a.id = asset_assignments.asset_id
     and ((a.category = 'Ô tô' and public.has_module_permission('vehicles','update'))
       or (a.category <> 'Ô tô' and public.has_module_permission('assets','update')))
+));
+create policy "delete assignments by module permission"
+on public.asset_assignments for delete to authenticated
+using (exists (
+  select 1 from public.assets a where a.id = asset_assignments.asset_id
+    and ((a.category = 'Ô tô' and public.has_module_permission('vehicles','delete'))
+      or (a.category <> 'Ô tô' and public.has_module_permission('assets','delete')))
 ));
 drop policy if exists "authenticated read transfers" on public.asset_transfers;
 drop policy if exists "editors manage transfers" on public.asset_transfers;
@@ -127,8 +141,15 @@ using (exists (
     and ((a.category = 'Ô tô' and public.has_module_permission('vehicles','view'))
       or (a.category <> 'Ô tô' and public.has_module_permission('assets','view')))
 ));
-create policy "manage transfers by module permission"
-on public.asset_transfers for all to authenticated
+create policy "insert transfers by module permission"
+on public.asset_transfers for insert to authenticated
+with check (exists (
+  select 1 from public.assets a where a.id = asset_transfers.asset_id
+    and ((a.category = 'Ô tô' and public.has_module_permission('vehicles','create'))
+      or (a.category <> 'Ô tô' and public.has_module_permission('assets','create')))
+));
+create policy "update transfers by module permission"
+on public.asset_transfers for update to authenticated
 using (exists (
   select 1 from public.assets a where a.id = asset_transfers.asset_id
     and ((a.category = 'Ô tô' and public.has_module_permission('vehicles','update'))
@@ -138,6 +159,13 @@ with check (exists (
   select 1 from public.assets a where a.id = asset_transfers.asset_id
     and ((a.category = 'Ô tô' and public.has_module_permission('vehicles','update'))
       or (a.category <> 'Ô tô' and public.has_module_permission('assets','update')))
+));
+create policy "delete transfers by module permission"
+on public.asset_transfers for delete to authenticated
+using (exists (
+  select 1 from public.assets a where a.id = asset_transfers.asset_id
+    and ((a.category = 'Ô tô' and public.has_module_permission('vehicles','delete'))
+      or (a.category <> 'Ô tô' and public.has_module_permission('assets','delete')))
 ));
 
 drop policy if exists "authenticated read attribute values" on public.asset_attribute_values;
@@ -149,8 +177,15 @@ using (exists (
     and ((a.category = 'Ô tô' and public.has_module_permission('vehicles','view'))
       or (a.category <> 'Ô tô' and public.has_module_permission('assets','view')))
 ));
-create policy "manage attribute values by module permission"
-on public.asset_attribute_values for all to authenticated
+create policy "insert attribute values by module permission"
+on public.asset_attribute_values for insert to authenticated
+with check (exists (
+  select 1 from public.assets a where a.id = asset_attribute_values.asset_id
+    and ((a.category = 'Ô tô' and public.has_module_permission('vehicles','create'))
+      or (a.category <> 'Ô tô' and public.has_module_permission('assets','create')))
+));
+create policy "update attribute values by module permission"
+on public.asset_attribute_values for update to authenticated
 using (exists (
   select 1 from public.assets a where a.id = asset_attribute_values.asset_id
     and ((a.category = 'Ô tô' and public.has_module_permission('vehicles','update'))
@@ -160,6 +195,13 @@ with check (exists (
   select 1 from public.assets a where a.id = asset_attribute_values.asset_id
     and ((a.category = 'Ô tô' and public.has_module_permission('vehicles','update'))
       or (a.category <> 'Ô tô' and public.has_module_permission('assets','update')))
+));
+create policy "delete attribute values by module permission"
+on public.asset_attribute_values for delete to authenticated
+using (exists (
+  select 1 from public.assets a where a.id = asset_attribute_values.asset_id
+    and ((a.category = 'Ô tô' and public.has_module_permission('vehicles','delete'))
+      or (a.category <> 'Ô tô' and public.has_module_permission('assets','delete')))
 ));
 
 -- License / renewal module.
