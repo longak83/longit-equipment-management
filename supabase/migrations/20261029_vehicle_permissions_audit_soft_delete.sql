@@ -97,10 +97,10 @@ begin
   if TG_OP = 'DELETE' then v_before := to_jsonb(old); end if;
   if TG_OP = 'INSERT' then v_after := to_jsonb(new); end if;
   if TG_OP = 'UPDATE' then v_after := to_jsonb(new); end if;
-  if TG_OP = 'DELETE' then v_id := old.id::text;
-  elsif TG_TABLE_NAME = 'assets' then v_id := new.id::text;
-  elsif TG_TABLE_NAME = 'maintenance_records' then v_id := new.id::text;
-  else v_id := new.asset_id::text;
+  if TG_TABLE_NAME = 'vehicle_details' then
+    if TG_OP = 'DELETE' then v_id := old.asset_id::text; else v_id := new.asset_id::text; end if;
+  else
+    if TG_OP = 'DELETE' then v_id := old.id::text; else v_id := new.id::text; end if;
   end if;
 
   insert into public.audit_logs(actor_id, table_name, record_id, action, before_data, after_data)
@@ -117,6 +117,7 @@ begin
 end;
 $$;
 
+drop trigger if exists assets_audit_log on public.assets;
 drop trigger if exists assets_sensitive_audit on public.assets;
 create trigger assets_sensitive_audit after insert or update or delete on public.assets
 for each row execute function public.log_sensitive_record_changes();
@@ -133,7 +134,10 @@ revoke insert, update, delete, truncate on public.audit_logs from anon, authenti
 -- Vehicle master data: module-specific permissions override legacy Editor rights.
 drop policy if exists "authenticated read assets" on public.assets;
 create policy "authenticated read assets" on public.assets for select to authenticated
-  using (deleted_at is null or public.current_user_role() = 'admin');
+  using (
+    (category <> 'Ô tô' or public.has_module_permission('vehicles','view'))
+    and (deleted_at is null or public.current_user_role() = 'admin')
+  );
 drop policy if exists "editors insert assets" on public.assets;
 create policy "insert assets by module permission" on public.assets for insert to authenticated
   with check (
