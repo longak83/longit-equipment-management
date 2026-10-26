@@ -151,8 +151,10 @@ create policy "update assets by module permission" on public.assets for update t
     or (category <> 'Ô tô' and public.has_write_access())
   )
   with check (
-    (category = 'Ô tô' and public.has_module_permission('vehicles','update'))
-    or (category <> 'Ô tô' and public.has_write_access())
+    (category = 'Ô tô' and public.has_module_permission('vehicles','update')
+      and (deleted_at is null or public.has_module_permission('vehicles','delete')))
+    or (category <> 'Ô tô' and public.has_write_access()
+      and (deleted_at is null or public.current_user_role() = 'admin'))
   );
 drop policy if exists "admins delete assets" on public.assets;
 create policy "no hard delete assets" on public.assets for delete to authenticated using (false);
@@ -167,7 +169,8 @@ create policy "vehicle managers insert vehicle details" on public.vehicle_detail
 drop policy if exists "editors update vehicle details" on public.vehicle_details;
 create policy "vehicle managers update vehicle details" on public.vehicle_details for update to authenticated
   using (public.has_module_permission('vehicles','update'))
-  with check (public.has_module_permission('vehicles','update'));
+  with check (public.has_module_permission('vehicles','update')
+    and (deleted_at is null or public.has_module_permission('vehicles','delete')));
 drop policy if exists "admins delete vehicle details" on public.vehicle_details;
 create policy "no hard delete vehicle details" on public.vehicle_details for delete to authenticated using (false);
 
