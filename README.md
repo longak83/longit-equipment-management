@@ -43,7 +43,7 @@
    supabase functions deploy admin-users
    ```
 4. Xác nhận Function `admin-users` đã deploy thành công trong Supabase Dashboard.
-5. Đăng nhập bằng Admin trên website để mở **Tài khoản người dùng**. Admin có thể tạo user với email, mật khẩu ban đầu (tối thiểu 12 ký tự) và vai trò Admin/Editor/Viewer.
+5. Đăng nhập bằng Admin trên website để mở **Tài khoản người dùng**. Admin có thể tạo user với email, mật khẩu ban đầu (tối thiểu 8 ký tự) và vai trò Admin/Editor/Viewer.
 6. Gửi mật khẩu ban đầu qua kênh riêng an toàn và yêu cầu người dùng đổi mật khẩu sau lần đăng nhập đầu tiên. Hiện ứng dụng không tự gửi email mời hoặc tự ép đổi mật khẩu.
 
 **Lưu ý bảo mật:** không tạo chức năng đăng ký công khai. Chỉ Admin được phép cấp vai trò. RLS phải được kiểm thử trên dữ liệu thật; không bật đọc công khai mặc định cho dữ liệu nội bộ.
