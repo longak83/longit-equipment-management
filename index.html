@@ -263,13 +263,29 @@ window.viewAsset=async id=>{
  $('assetDetailModal').classList.add('show');
  const fields=[['Mã tài sản',a.asset_code],['Tên tài sản',a.name],['Nhóm thiết bị',a.category],['Trạng thái',a.status],['Hãng sản xuất',a.manufacturer],['Model',a.model],['Serial',a.serial_number],['Đơn vị / phòng ban',a.department],['Người quản lý',a.custodian],['Vị trí',a.location],['Ngày mua',a.purchase_date],['Nguyên giá',money(a.purchase_cost)+' VNĐ'],['Hết bảo hành',a.warranty_end],['Ghi chú',a.notes]];
  let html='<div class="formgrid">'+fields.map(([k,v])=>'<div class="field"><b>'+esc(k)+'</b><span>'+esc(v||'—')+'</span></div>').join('')+'</div>';
- if(client&&session){
-  const results=await Promise.all([client.from('maintenance_records').select('*').eq('asset_id',id).order('reported_at',{ascending:false}),client.from('asset_assignments').select('*').eq('asset_id',id).order('assigned_at',{ascending:false}),client.from('asset_transfers').select('*').eq('asset_id',id).order('transfer_date',{ascending:false})]);
-  const records=results[0].data||[],assignments=results[1].data||[],transfers=results[2].data||[];
-  html+='<hr style="border:0;border-top:1px solid var(--line);margin:20px 0"><h3>Lịch sử sự cố / bảo trì ('+records.length+')</h3>'+(records.length?'<div class="tablewrap"><table><thead><tr><th>Ngày</th><th>Loại</th><th>Mô tả</th><th>Trạng thái</th><th>Chi phí</th></tr></thead><tbody>'+records.map(r=>'<tr><td>'+esc(r.reported_at)+'</td><td>'+esc(r.record_type)+'</td><td>'+esc(r.description)+'</td><td>'+esc(r.status)+'</td><td>'+money(r.cost)+' đ</td></tr>').join('')+'</tbody></table></div>':'<p class="muted">Chưa có hồ sơ sự cố/bảo trì.</p>');
-  html+='<hr style="border:0;border-top:1px solid var(--line);margin:20px 0"><h3>Lịch sử bàn giao ('+assignments.length+')</h3>'+(assignments.length?'<div class="tablewrap"><table><thead><tr><th>Người quản lý</th><th>Đơn vị</th><th>Vị trí</th><th>Ngày bàn giao</th><th>Ngày thu hồi</th></tr></thead><tbody>'+assignments.map(r=>'<tr><td>'+esc(r.custodian)+'</td><td>'+esc(r.department||'—')+'</td><td>'+esc(r.location||'—')+'</td><td>'+esc(r.assigned_at)+'</td><td>'+esc(r.returned_at||'—')+'</td></tr>').join('')+'</tbody></table></div>':'<p class="muted">Chưa có lịch sử bàn giao.</p>');
-  html+='<hr style="border:0;border-top:1px solid var(--line);margin:20px 0"><h3>Lịch sử điều chuyển ('+transfers.length+')</h3>'+(transfers.length?'<div class="tablewrap"><table><thead><tr><th>Ngày</th><th>Từ</th><th>Đến</th><th>Lý do</th></tr></thead><tbody>'+transfers.map(r=>'<tr><td>'+esc(r.transfer_date)+'</td><td>'+esc([r.from_department,r.from_location].filter(Boolean).join(' / ')||'—')+'</td><td>'+esc([r.to_department,r.to_location].filter(Boolean).join(' / ')||'—')+'</td><td>'+esc(r.reason||'—')+'</td></tr>').join('')+'</tbody></table></div>':'<p class="muted">Chưa có lịch sử điều chuyển.</p>');
- }else{html+='<p class="notice" style="margin-top:18px">Đăng nhập để xem lịch sử sự cố, bàn giao và điều chuyển.</p>';}
+ if(client){
+  let records=[],assignments=[],transfers=[];
+  if(session){
+   const results=await Promise.all([
+    client.from('maintenance_records').select('*').eq('asset_id',id).order('reported_at',{ascending:false}),
+    client.from('asset_assignments').select('*').eq('asset_id',id).order('assigned_at',{ascending:false}),
+    client.from('asset_transfers').select('*').eq('asset_id',id).order('transfer_date',{ascending:false})
+   ]);
+   records=results[0].data||[];assignments=results[1].data||[];transfers=results[2].data||[];
+  }else{
+   const results=await Promise.all([
+    client.from('public_asset_assignment_history').select('*').eq('asset_id',id).order('assigned_at',{ascending:false}),
+    client.from('public_asset_transfer_history').select('*').eq('asset_id',id).order('transfer_date',{ascending:false})
+   ]);
+   assignments=results[0].data||[];transfers=results[1].data||[];
+  }
+  if(session){
+   html+='<hr style="border:0;border-top:1px solid var(--line);margin:20px 0"><h3>Lịch sử sự cố / bảo trì ('+records.length+')</h3>'+(records.length?'<div class="tablewrap"><table><thead><tr><th>Ngày</th><th>Loại</th><th>Mô tả</th><th>Trạng thái</th><th>Chi phí</th></tr></thead><tbody>'+records.map(r=>'<tr><td>'+esc(r.reported_at)+'</td><td>'+esc(r.record_type)+'</td><td>'+esc(r.description)+'</td><td>'+esc(r.status)+'</td><td>'+money(r.cost)+' đ</td></tr>').join('')+'</tbody></table></div>':'<p class="muted">Chưa có hồ sơ sự cố/bảo trì.</p>');
+  }
+  html+='<hr style="border:0;border-top:1px solid var(--line);margin:20px 0"><h3>Lịch sử bàn giao ('+assignments.length+')</h3>'+(assignments.length?'<div class="tablewrap"><table><thead><tr><th>'+(session?'Người quản lý':'Thông tin bàn giao')+'</th><th>Đơn vị</th><th>Vị trí</th><th>Ngày bàn giao</th><th>Ngày thu hồi</th></tr></thead><tbody>'+assignments.map(r=>'<tr><td>'+esc(session?(r.custodian||'—'):'Bàn giao cá nhân')+'</td><td>'+esc(r.department||'—')+'</td><td>'+esc(r.location||'—')+'</td><td>'+esc(r.assigned_at)+'</td><td>'+esc(r.returned_at||'—')+'</td></tr>').join('')+'</tbody></table></div>':'<p class="muted">Chưa có lịch sử bàn giao.</p>');
+  html+='<hr style="border:0;border-top:1px solid var(--line);margin:20px 0"><h3>Lịch sử điều chuyển ('+transfers.length+')</h3>'+(transfers.length?'<div class="tablewrap"><table><thead><tr><th>Ngày</th><th>Từ</th><th>Đến</th><th>Lý do</th>'+(session?'<th>Trạng thái</th>':'')+'</tr></thead><tbody>'+transfers.map(r=>'<tr><td>'+esc(r.transfer_date)+'</td><td>'+esc([r.from_department,r.from_location].filter(Boolean).join(' / ')||'—')+'</td><td>'+esc([r.to_department,r.to_location].filter(Boolean).join(' / ')||'—')+'</td><td>'+esc(r.reason||'—')+'</td>'+(session?'<td>'+esc(r.status||'Đã hoàn tất')+'</td>':'')+'</tr>').join('')+'</tbody></table></div>':'<p class="muted">Chưa có lịch sử điều chuyển công khai.</p>');
+  if(!session) html+='<p class="muted" style="margin-top:10px">Chế độ xem thử: tên người quản lý và thông tin nội bộ được ẩn.</p>';
+ }else{html+='<p class="notice" style="margin-top:18px">Không thể tải lịch sử tài sản lúc này.</p>';}
  $('assetDetailBody').innerHTML=html;
 };
 
