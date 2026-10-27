@@ -20,7 +20,7 @@ update public.asset_transfers
 set status = 'completed',
     completed_at = coalesce(completed_at, transfer_date::timestamp at time zone 'UTC'),
     requested_at = coalesce(requested_at, created_at)
-where status is null or status = '';
+where status is null or status = '' or completed_at is null or requested_at is null;
 
 alter table public.asset_transfers
   alter column status set default 'pending';
